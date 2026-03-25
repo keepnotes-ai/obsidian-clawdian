@@ -528,7 +528,7 @@
    ============================================ */
 .oc-input-container {
   position: relative;
-  padding: 8px 12px 12px 12px;
+  padding: 8px 4px 8px 4px;
   flex-shrink: 0;
 }
 
@@ -536,7 +536,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 80px;
+  min-height: 72px;
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--oc-radius);
   background: var(--background-primary);

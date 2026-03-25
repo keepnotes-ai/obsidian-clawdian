@@ -143,10 +143,10 @@ var OpenClawAPI = class {
   }
   /**
    * Send a chat message with full conversation history.
-   * Supports streaming via SSE.
+   * Uses Node.js http module for streaming (reliable in Electron).
    */
   async chat(messages, onChunk, abortSignal) {
-    const url = `${this.settings.gatewayUrl}/v1/chat/completions`;
+    const parsedUrl = new URL(`${this.settings.gatewayUrl}/v1/chat/completions`);
     const token = this.getToken();
     const body = JSON.stringify({
       model: "clawdbot:main",
@@ -154,55 +154,70 @@ var OpenClawAPI = class {
       stream: true
     });
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "Accept": "text/event-stream"
-      },
-      body: body,
-      signal: abortSignal
-    });
+    const http = require(parsedUrl.protocol === "https:" ? "https" : "http");
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text}`);
-    }
+    return new Promise((resolve, reject) => {
+      if (abortSignal?.aborted) { reject(new Error("AbortError")); return; }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let fullText = "";
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith("data: ")) continue;
-        const data = trimmed.slice(6);
-        if (data === "[DONE]") continue;
-
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta;
-          if (delta?.content) {
-            fullText += delta.content;
-            if (onChunk) onChunk(fullText, delta.content);
-          }
-        } catch (e) {
-          // Skip malformed chunks
+      const req = http.request({
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (parsedUrl.protocol === "https:" ? 443 : 80),
+        path: parsedUrl.pathname,
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream"
         }
-      }
-    }
+      }, (res) => {
+        if (res.statusCode >= 400) {
+          let errBody = "";
+          res.on("data", (chunk) => errBody += chunk);
+          res.on("end", () => reject(new Error(`HTTP ${res.statusCode}: ${errBody}`)));
+          return;
+        }
 
-    return fullText;
+        let fullText = "";
+        let buffer = "";
+
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          buffer += chunk;
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data: ")) continue;
+            const data = trimmed.slice(6);
+            if (data === "[DONE]") continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta;
+              if (delta?.content) {
+                fullText += delta.content;
+                if (onChunk) onChunk(fullText, delta.content);
+              }
+            } catch (e) {}
+          }
+        });
+
+        res.on("end", () => resolve(fullText));
+        res.on("error", (err) => reject(err));
+      });
+
+      req.on("error", (err) => reject(new Error(`Failed to connect: ${err.message}`)));
+
+      // Abort support
+      if (abortSignal) {
+        const onAbort = () => { req.destroy(); reject(Object.assign(new Error("Cancelled"), { name: "AbortError" })); };
+        abortSignal.addEventListener("abort", onAbort, { once: true });
+      }
+
+      req.write(body);
+      req.end();
+    });
   }
 
   /**

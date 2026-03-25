@@ -16,16 +16,13 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// main.ts
 var main_exports = {};
-__export(main_exports, {
-  default: () => OpenClawPlugin
-});
+__export(main_exports, { default: () => ClawdianPlugin });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 
 // ============================================
-// src/secureStorage.ts — Preserved from v0.4.1
+// SecureStorage (preserved from v0.4.1)
 // ============================================
 var safeStorage = null;
 var safeStorageAvailable = null;
@@ -51,18 +48,11 @@ function getSafeStorage() {
 }
 
 function getEnvToken() {
-  try {
-    return process.env.OPENCLAW_TOKEN || null;
-  } catch (e) {
-    return null;
-  }
+  try { return process.env.OPENCLAW_TOKEN || null; } catch (e) { return null; }
 }
 
 var SecureTokenStorage = class {
-  constructor() {
-    this.encryptedToken = null;
-    this.plaintextToken = "";
-  }
+  constructor() { this.encryptedToken = null; this.plaintextToken = ""; }
   getActiveMethod() {
     if (getEnvToken()) return "envVar";
     if (getSafeStorage()) return "safeStorage";
@@ -70,8 +60,8 @@ var SecureTokenStorage = class {
   }
   getStatusInfo() {
     if (getEnvToken()) return { method: "envVar", description: "Using OPENCLAW_TOKEN environment variable", secure: true };
-    if (getSafeStorage()) return { method: "safeStorage", description: "Encrypted with OS keychain (Keychain/DPAPI/libsecret)", secure: true };
-    return { method: "plaintext", description: "\u26A0\uFE0F Stored in plaintext \u2014 avoid syncing plugin folder", secure: false };
+    if (getSafeStorage()) return { method: "safeStorage", description: "Encrypted with OS keychain", secure: true };
+    return { method: "plaintext", description: "\u26A0\uFE0F Stored in plaintext", secure: false };
   }
   setToken(token) {
     if (getEnvToken()) return { encrypted: null, plaintext: "" };
@@ -94,22 +84,17 @@ var SecureTokenStorage = class {
     if (encrypted) {
       const storage = getSafeStorage();
       if (storage) {
-        try {
-          const buffer = Buffer.from(encrypted, "base64");
-          return storage.decryptString(buffer);
-        } catch (e) {}
+        try { return storage.decryptString(Buffer.from(encrypted, "base64")); } catch (e) {}
       }
     }
     return plaintext || "";
   }
-  isSafeStorageAvailable() { return getSafeStorage() !== null; }
-  isEnvVarSet() { return getEnvToken() !== null; }
 };
 
 var secureTokenStorage = new SecureTokenStorage();
 
 // ============================================
-// src/types.ts — Settings & Defaults
+// Settings & Defaults
 // ============================================
 var DEFAULT_SETTINGS = {
   gatewayUrl: "http://127.0.0.1:18789",
@@ -120,32 +105,27 @@ var DEFAULT_SETTINGS = {
   auditLogPath: "Clawdian/audit-log.md",
   includeCurrentNote: true,
   conversationsPath: "Clawdian/conversations",
-  // Preserved sync settings for backwards compatibility
   syncEnabled: false,
   syncServerUrl: "http://127.0.0.1:18790",
-  syncPaths: [{ remotePath: "notes", localPath: "OpenClaw/Notes", enabled: true }],
+  syncPaths: [{ remotePath: "notes", localPath: "Clawdian/Notes", enabled: true }],
   syncInterval: 0,
   syncConflictBehavior: "ask"
 };
 
 // ============================================
-// src/api.ts — OpenClaw Gateway API (v2: streaming + history)
+// OpenClaw Gateway API (streaming via Node http)
 // ============================================
-var OpenClawAPI = class {
-  constructor(settings) {
-    this.settings = settings;
-  }
+var ClawdianAPI = class {
+  constructor(settings) { this.settings = settings; }
   getToken() {
-    return secureTokenStorage.getToken(
-      this.settings.gatewayTokenEncrypted,
-      this.settings.gatewayTokenPlaintext
-    );
+    return secureTokenStorage.getToken(this.settings.gatewayTokenEncrypted, this.settings.gatewayTokenPlaintext);
   }
+
   /**
-   * Send a chat message with full conversation history.
-   * Uses Node.js http module for streaming (reliable in Electron).
+   * Streaming chat with thinking support.
+   * Returns { text, thinking } — thinking is array of { content } blocks.
    */
-  async chat(messages, onChunk, abortSignal) {
+  async chat(messages, onChunk, onThinking, abortSignal) {
     const parsedUrl = new URL(`${this.settings.gatewayUrl}/v1/chat/completions`);
     const token = this.getToken();
     const body = JSON.stringify({
@@ -178,6 +158,8 @@ var OpenClawAPI = class {
         }
 
         let fullText = "";
+        let thinkingText = "";
+        let inThinking = false;
         let buffer = "";
 
         res.setEncoding("utf8");
@@ -195,7 +177,17 @@ var OpenClawAPI = class {
             try {
               const parsed = JSON.parse(data);
               const delta = parsed.choices?.[0]?.delta;
-              if (delta?.content) {
+              if (!delta) continue;
+
+              // Check for thinking/reasoning content
+              if (delta.reasoning_content || delta.reasoning) {
+                const rc = delta.reasoning_content || delta.reasoning;
+                thinkingText += rc;
+                inThinking = true;
+                if (onThinking) onThinking(thinkingText);
+              }
+              if (delta.content) {
+                if (inThinking) inThinking = false;
                 fullText += delta.content;
                 if (onChunk) onChunk(fullText, delta.content);
               }
@@ -203,13 +195,12 @@ var OpenClawAPI = class {
           }
         });
 
-        res.on("end", () => resolve(fullText));
+        res.on("end", () => resolve({ text: fullText, thinking: thinkingText }));
         res.on("error", (err) => reject(err));
       });
 
-      req.on("error", (err) => reject(new Error(`Failed to connect: ${err.message}`)));
+      req.on("error", (err) => reject(new Error(`Connection failed: ${err.message}`)));
 
-      // Abort support
       if (abortSignal) {
         const onAbort = () => { req.destroy(); reject(Object.assign(new Error("Cancelled"), { name: "AbortError" })); };
         abortSignal.addEventListener("abort", onAbort, { once: true });
@@ -220,34 +211,21 @@ var OpenClawAPI = class {
     });
   }
 
-  /**
-   * Non-streaming chat (for testing connection)
-   */
   async chatSync(message) {
     const url = `${this.settings.gatewayUrl}/v1/chat/completions`;
     const token = this.getToken();
     const response = await (0, import_obsidian.requestUrl)({
-      url,
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "clawdbot:main",
-        messages: [{ role: "user", content: message }],
-        stream: false
-      })
+      url, method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "clawdbot:main", messages: [{ role: "user", content: message }], stream: false })
     });
-    if (response.status >= 400) {
-      throw new Error(`HTTP ${response.status}: ${response.text}`);
-    }
+    if (response.status >= 400) throw new Error(`HTTP ${response.status}: ${response.text}`);
     return response.json?.choices?.[0]?.message?.content || "";
   }
 };
 
 // ============================================
-// src/conversationStore.ts — Persistence
+// ConversationStore — Persistence
 // ============================================
 var ConversationStore = class {
   constructor(app, getSettings) {
@@ -256,177 +234,143 @@ var ConversationStore = class {
     this.conversations = new Map();
   }
 
-  generateId() {
-    return "conv-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-  }
+  generateId() { return "conv-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
 
   createConversation(title) {
     const id = this.generateId();
-    const conv = {
-      id,
-      title: title || "New Chat",
-      messages: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
+    const conv = { id, title: title || "New Chat", messages: [], createdAt: Date.now(), updatedAt: Date.now() };
     this.conversations.set(id, conv);
     return conv;
   }
 
-  getConversation(id) {
-    return this.conversations.get(id) || null;
-  }
+  getConversation(id) { return this.conversations.get(id) || null; }
 
-  deleteConversation(id) {
-    this.conversations.delete(id);
-    this.deleteFile(id);
-  }
+  deleteConversation(id) { this.conversations.delete(id); this.deleteFile(id); }
 
   updateTitle(id, title) {
     const conv = this.conversations.get(id);
-    if (conv) {
-      conv.title = title;
-      conv.updatedAt = Date.now();
-    }
+    if (conv) { conv.title = title; conv.updatedAt = Date.now(); }
   }
 
-  addMessage(convId, role, content) {
+  addMessage(convId, role, content, extra) {
     const conv = this.conversations.get(convId);
     if (!conv) return;
-    conv.messages.push({ role, content, timestamp: Date.now() });
+    const msg = { role, content, timestamp: Date.now() };
+    if (extra?.thinking) msg.thinking = extra.thinking;
+    conv.messages.push(msg);
     conv.updatedAt = Date.now();
-    // Auto-title from first user message
     if (conv.title === "New Chat" && role === "user") {
       conv.title = content.slice(0, 40) + (content.length > 40 ? "..." : "");
     }
   }
 
+  removeMessage(convId, index) {
+    const conv = this.conversations.get(convId);
+    if (!conv || index < 0 || index >= conv.messages.length) return;
+    conv.messages.splice(index, 1);
+    conv.updatedAt = Date.now();
+  }
+
+  // Truncate messages from index onwards (for edit-resend)
+  truncateFrom(convId, index) {
+    const conv = this.conversations.get(convId);
+    if (!conv) return;
+    conv.messages = conv.messages.slice(0, index);
+    conv.updatedAt = Date.now();
+  }
+
   getMessages(convId) {
     const conv = this.conversations.get(convId);
     if (!conv) return [];
-    // Return in OpenAI format (no timestamps)
     return conv.messages.map(m => ({ role: m.role, content: m.content }));
   }
 
   getAllConversations() {
-    return Array.from(this.conversations.values())
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    return Array.from(this.conversations.values()).sort((a, b) => b.updatedAt - a.updatedAt);
   }
-
-  // ---- Persistence ----
 
   async saveConversation(id) {
     const conv = this.conversations.get(id);
     if (!conv) return;
     const settings = this.getSettings();
     const folder = settings.conversationsPath;
-    const { vault } = this.app;
-
     await this.ensureFolder(folder);
     const filePath = `${folder}/${id}.json`;
     const data = JSON.stringify(conv, null, 2);
-
-    const existing = vault.getAbstractFileByPath(filePath);
+    const existing = this.app.vault.getAbstractFileByPath(filePath);
     if (existing instanceof import_obsidian.TFile) {
-      await vault.modify(existing, data);
+      await this.app.vault.modify(existing, data);
     } else {
-      await vault.create(filePath, data);
+      await this.app.vault.create(filePath, data);
     }
   }
 
   async loadAll() {
     const settings = this.getSettings();
     const folder = settings.conversationsPath;
-    const { vault } = this.app;
-
-    const folderObj = vault.getAbstractFileByPath(folder);
+    const folderObj = this.app.vault.getAbstractFileByPath(folder);
     if (!folderObj || !(folderObj instanceof import_obsidian.TFolder)) return;
-
     for (const child of folderObj.children) {
       if (child instanceof import_obsidian.TFile && child.extension === "json") {
         try {
-          const raw = await vault.read(child);
+          const raw = await this.app.vault.read(child);
           const conv = JSON.parse(raw);
-          if (conv.id && conv.messages) {
-            this.conversations.set(conv.id, conv);
-          }
-        } catch (e) {
-          console.error("OpenClaw: Failed to load conversation", child.path, e);
-        }
+          if (conv.id && conv.messages) this.conversations.set(conv.id, conv);
+        } catch (e) { console.error("Clawdian: Failed to load conversation", child.path, e); }
       }
     }
   }
 
   async deleteFile(id) {
     const settings = this.getSettings();
-    const filePath = `${settings.conversationsPath}/${id}.json`;
-    const { vault } = this.app;
-    const file = vault.getAbstractFileByPath(filePath);
-    if (file) {
-      try { await vault.delete(file); } catch (e) {}
-    }
+    const file = this.app.vault.getAbstractFileByPath(`${settings.conversationsPath}/${id}.json`);
+    if (file) { try { await this.app.vault.delete(file); } catch (e) {} }
   }
 
   async ensureFolder(path) {
-    const { vault } = this.app;
     const parts = path.split("/");
     let current = "";
     for (const part of parts) {
       current = current ? `${current}/${part}` : part;
-      if (!vault.getAbstractFileByPath(current)) {
-        await vault.createFolder(current);
+      if (!this.app.vault.getAbstractFileByPath(current)) {
+        await this.app.vault.createFolder(current);
       }
     }
   }
 };
 
 // ============================================
-// src/actions.ts — File Action Executor (preserved from v0.4.1)
+// File Action Executor (preserved from v0.4.1)
 // ============================================
 var DESTRUCTIVE_ACTIONS = ["deleteFile", "updateFile", "renameFile"];
 
 var ConfirmActionModal = class extends import_obsidian.Modal {
   constructor(app, action, description) {
-    super(app);
-    this.action = action;
-    this.description = description;
-    this.result = false;
+    super(app); this.action = action; this.description = description; this.result = false;
   }
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Confirm Action" });
-    contentEl.createEl("p", { text: "OpenClaw wants to perform the following action:" });
+    contentEl.createEl("p", { text: "Clawdian wants to perform the following action:" });
     const detailsEl = contentEl.createDiv({ cls: "oc-confirm-details" });
     detailsEl.createEl("strong", { text: this.getActionLabel() });
     detailsEl.createEl("p", { text: this.description });
-    if (this.action.action === "deleteFile") {
-      contentEl.createDiv({ cls: "oc-confirm-warning" }).setText("\u26A0\uFE0F This action cannot be undone.");
-    }
+    if (this.action.action === "deleteFile") contentEl.createDiv({ cls: "oc-confirm-warning" }).setText("\u26A0\uFE0F This action cannot be undone.");
     const buttons = contentEl.createDiv({ cls: "oc-confirm-buttons" });
-    const cancelBtn = buttons.createEl("button", { text: "Cancel" });
-    cancelBtn.addEventListener("click", () => { this.result = false; this.close(); });
+    buttons.createEl("button", { text: "Cancel" }).addEventListener("click", () => { this.result = false; this.close(); });
     const confirmBtn = buttons.createEl("button", { text: "Confirm", cls: "mod-cta" });
     confirmBtn.addEventListener("click", () => { this.result = true; this.close(); });
     confirmBtn.focus();
   }
-  onClose() {
-    this.contentEl.empty();
-    if (this.resolvePromise) this.resolvePromise(this.result);
-  }
+  onClose() { this.contentEl.empty(); if (this.resolvePromise) this.resolvePromise(this.result); }
   getActionLabel() {
-    const labels = { deleteFile: "\uD83D\uDDD1\uFE0F Delete", updateFile: "\u270F\uFE0F Update", renameFile: "\uD83D\uDCDD Rename" };
-    return labels[this.action.action] || this.action.action;
+    return ({ deleteFile: "\uD83D\uDDD1\uFE0F Delete", updateFile: "\u270F\uFE0F Update", renameFile: "\uD83D\uDCDD Rename" })[this.action.action] || this.action.action;
   }
-  async waitForResult() {
-    return new Promise(resolve => { this.resolvePromise = resolve; this.open(); });
-  }
+  async waitForResult() { return new Promise(resolve => { this.resolvePromise = resolve; this.open(); }); }
 };
 
 var ActionExecutor = class {
-  constructor(app, getSettings) {
-    this.app = app;
-    this.getSettings = getSettings;
-  }
+  constructor(app, getSettings) { this.app = app; this.getSettings = getSettings; }
   async execute(actions) {
     let success = 0, failed = 0, skipped = 0;
     for (const action of actions) {
@@ -443,8 +387,8 @@ var ActionExecutor = class {
         failed++;
       }
     }
-    if (success > 0) new import_obsidian.Notice(`OpenClaw: ${success} action(s) completed`);
-    if (failed > 0) new import_obsidian.Notice(`OpenClaw: ${failed} action(s) failed`);
+    if (success > 0) new import_obsidian.Notice(`Clawdian: ${success} action(s) completed`);
+    if (failed > 0) new import_obsidian.Notice(`Clawdian: ${failed} action(s) failed`);
     return { success, failed, skipped };
   }
   getDesc(action) {
@@ -465,12 +409,11 @@ var ActionExecutor = class {
     else if (action.path) entry += `\`${action.path}\` |`;
     else entry += `${JSON.stringify(action)} |`;
     if (error) entry += ` ${error}`;
-
     let logFile = vault.getAbstractFileByPath(logPath);
     if (!logFile) {
       const folder = logPath.substring(0, logPath.lastIndexOf("/"));
       if (folder && !vault.getAbstractFileByPath(folder)) await vault.createFolder(folder);
-      await vault.create(logPath, `# OpenClaw Audit Log\n\n| Timestamp | Status | Action | Details |\n|-----------|--------|--------|---------|` + entry);
+      await vault.create(logPath, `# Clawdian Audit Log\n\n| Timestamp | Status | Action | Details |\n|-----------|--------|--------|---------|` + entry);
     } else if (logFile instanceof import_obsidian.TFile) {
       const content = await vault.read(logFile);
       await vault.modify(logFile, content + entry);
@@ -486,36 +429,11 @@ var ActionExecutor = class {
         await vault.create(action.path, action.content);
         break;
       }
-      case "updateFile": {
-        const f = vault.getAbstractFileByPath(action.path);
-        if (!(f instanceof import_obsidian.TFile)) throw new Error(`Not found: ${action.path}`);
-        await vault.modify(f, action.content);
-        break;
-      }
-      case "appendToFile": {
-        const f = vault.getAbstractFileByPath(action.path);
-        if (!(f instanceof import_obsidian.TFile)) throw new Error(`Not found: ${action.path}`);
-        await vault.modify(f, (await vault.read(f)) + "\n" + action.content);
-        break;
-      }
-      case "deleteFile": {
-        const f = vault.getAbstractFileByPath(action.path);
-        if (!f) throw new Error(`Not found: ${action.path}`);
-        await vault.delete(f);
-        break;
-      }
-      case "renameFile": {
-        const f = vault.getAbstractFileByPath(action.path);
-        if (!f) throw new Error(`Not found: ${action.path}`);
-        await vault.rename(f, action.newPath);
-        break;
-      }
-      case "openFile": {
-        const f = vault.getAbstractFileByPath(action.path);
-        if (!(f instanceof import_obsidian.TFile)) throw new Error(`Not found: ${action.path}`);
-        await this.app.workspace.getLeaf().openFile(f);
-        break;
-      }
+      case "updateFile": { const f = vault.getAbstractFileByPath(action.path); if (!(f instanceof import_obsidian.TFile)) throw new Error(`Not found: ${action.path}`); await vault.modify(f, action.content); break; }
+      case "appendToFile": { const f = vault.getAbstractFileByPath(action.path); if (!(f instanceof import_obsidian.TFile)) throw new Error(`Not found: ${action.path}`); await vault.modify(f, (await vault.read(f)) + "\n" + action.content); break; }
+      case "deleteFile": { const f = vault.getAbstractFileByPath(action.path); if (!f) throw new Error(`Not found: ${action.path}`); await vault.delete(f); break; }
+      case "renameFile": { const f = vault.getAbstractFileByPath(action.path); if (!f) throw new Error(`Not found: ${action.path}`); await vault.rename(f, action.newPath); break; }
+      case "openFile": { const f = vault.getAbstractFileByPath(action.path); if (!(f instanceof import_obsidian.TFile)) throw new Error(`Not found: ${action.path}`); await this.app.workspace.getLeaf().openFile(f); break; }
       default: throw new Error(`Unknown: ${action.action}`);
     }
   }
@@ -524,33 +442,183 @@ var ActionExecutor = class {
     if (!match) return [];
     try { return JSON.parse(match[1]); } catch (e) { return []; }
   }
-  stripActionBlocks(text) {
-    return text.replace(/```json:openclaw-actions\n[\s\S]*?```\n?/g, "").trim();
+  stripActionBlocks(text) { return text.replace(/```json:openclaw-actions\n[\s\S]*?```\n?/g, "").trim(); }
+};
+
+// ============================================
+// Icons
+// ============================================
+var LOBSTER_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="50" cy="42" rx="14" ry="18"/><ellipse cx="50" cy="62" rx="11" ry="10"/><ellipse cx="50" cy="76" rx="8" ry="7"/><circle cx="44" cy="32" r="3" fill="currentColor"/><circle cx="56" cy="32" r="3" fill="currentColor"/><path d="M36 38c-8-2-16-1-20 4s-1 12 5 14"/><path d="M64 38c8-2 16-1 20 4s1 12-5 14"/><path d="M21 56c-5 1-10-1-12-5"/><path d="M79 56c5 1 10-1 12-5"/><path d="M24 48c-6-2-11 0-13 5"/><path d="M76 48c6-2 11 0 13 5"/><path d="M42 82l-7 10"/><path d="M58 82l7 10"/><path d="M47 83l-1 11"/><path d="M53 83l1 11"/><path d="M50 83v11"/><path d="M40 26c-3-6-8-14-8-14"/><path d="M60 26c3-6 8-14 8-14"/></svg>`;
+
+var ICON = {
+  plus: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  copy: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  check: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  chevronDown: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  chevronRight: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+  file: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  trash: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  refresh: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
+  edit: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+  stop: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>',
+  brain: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2z"/></svg>',
+  image: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'
+};
+
+// ============================================
+// @ File Mention Popup
+// ============================================
+var FileMentionPopup = class {
+  constructor(app, inputEl, onSelect) {
+    this.app = app;
+    this.inputEl = inputEl;
+    this.onSelect = onSelect;
+    this.popupEl = null;
+    this.items = [];
+    this.selectedIndex = 0;
+    this.active = false;
+    this.mentionStart = -1;
+  }
+
+  show(cursorPos) {
+    this.mentionStart = cursorPos;
+    this.active = true;
+    this.selectedIndex = 0;
+
+    if (!this.popupEl) {
+      this.popupEl = document.createElement("div");
+      this.popupEl.addClass("oc-mention-popup");
+      this.inputEl.parentElement.appendChild(this.popupEl);
+    }
+    this.popupEl.style.display = "block";
+    this.updateList("");
+  }
+
+  hide() {
+    this.active = false;
+    this.mentionStart = -1;
+    if (this.popupEl) this.popupEl.style.display = "none";
+  }
+
+  updateList(query) {
+    if (!this.popupEl) return;
+    this.popupEl.empty();
+
+    const files = this.app.vault.getMarkdownFiles()
+      .filter(f => !f.path.startsWith("Clawdian/"))
+      .sort((a, b) => b.stat.mtime - a.stat.mtime);
+
+    const q = query.toLowerCase();
+    this.items = files
+      .filter(f => !q || f.basename.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
+      .slice(0, 10);
+
+    if (this.items.length === 0) {
+      this.popupEl.createDiv({ cls: "oc-mention-empty", text: "No files found" });
+      return;
+    }
+
+    this.items.forEach((file, i) => {
+      const item = this.popupEl.createDiv({
+        cls: "oc-mention-item" + (i === this.selectedIndex ? " selected" : "")
+      });
+      item.createSpan({ cls: "oc-mention-name", text: file.basename });
+      const pathDisplay = file.parent?.path || "";
+      if (pathDisplay) item.createSpan({ cls: "oc-mention-path", text: pathDisplay });
+      item.addEventListener("click", () => this.select(file));
+      item.addEventListener("mouseenter", () => {
+        this.selectedIndex = i;
+        this.highlightSelected();
+      });
+    });
+  }
+
+  highlightSelected() {
+    if (!this.popupEl) return;
+    const children = this.popupEl.querySelectorAll(".oc-mention-item");
+    children.forEach((el, i) => el.toggleClass("selected", i === this.selectedIndex));
+  }
+
+  handleKey(e) {
+    if (!this.active) return false;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      this.selectedIndex = Math.min(this.selectedIndex + 1, this.items.length - 1);
+      this.highlightSelected();
+      return true;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      this.selectedIndex = Math.max(this.selectedIndex - 1, 0);
+      this.highlightSelected();
+      return true;
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      if (this.items.length > 0) {
+        e.preventDefault();
+        this.select(this.items[this.selectedIndex]);
+        return true;
+      }
+    }
+    if (e.key === "Escape") {
+      this.hide();
+      return true;
+    }
+    return false;
+  }
+
+  handleInput() {
+    if (!this.active) return;
+    const val = this.inputEl.value;
+    const query = val.slice(this.mentionStart + 1, this.inputEl.selectionStart);
+    if (query.includes(" ") && query.length > 20) { this.hide(); return; }
+    this.selectedIndex = 0;
+    this.updateList(query);
+  }
+
+  select(file) {
+    this.onSelect(file, this.mentionStart);
+    this.hide();
   }
 };
 
 // ============================================
-// src/icons.ts — SVG Icons
+// Rename Modal
 // ============================================
-// Custom lobster icon for ribbon (Obsidian uses 100x100 viewBox for addIcon)
-var LOBSTER_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="50" cy="42" rx="14" ry="18"/><ellipse cx="50" cy="62" rx="11" ry="10"/><ellipse cx="50" cy="76" rx="8" ry="7"/><circle cx="44" cy="32" r="3" fill="currentColor"/><circle cx="56" cy="32" r="3" fill="currentColor"/><path d="M36 38c-8-2-16-1-20 4s-1 12 5 14"/><path d="M64 38c8-2 16-1 20 4s1 12-5 14"/><path d="M21 56c-5 1-10-1-12-5"/><path d="M79 56c5 1 10-1 12-5"/><path d="M24 48c-6-2-11 0-13 5"/><path d="M76 48c6-2 11 0 13 5"/><path d="M42 82l-7 10"/><path d="M58 82l7 10"/><path d="M47 83l-1 11"/><path d="M53 83l1 11"/><path d="M50 83v11"/><path d="M40 26c-3-6-8-14-8-14"/><path d="M60 26c3-6 8-14 8-14"/></svg>`;
-
-var ICONS = {
-  plus: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
-  settings: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
-  copy: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>',
-  check: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
-  chevronDown: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>',
-  file: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>',
-  trash: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>'
+var RenameModal = class extends import_obsidian.Modal {
+  constructor(app, currentTitle, onSubmit) {
+    super(app);
+    this.currentTitle = currentTitle;
+    this.onSubmit = onSubmit;
+  }
+  onOpen() {
+    this.titleEl.setText("Rename conversation");
+    const input = this.contentEl.createEl("input", {
+      type: "text", value: this.currentTitle, cls: "oc-rename-input"
+    });
+    input.style.width = "100%";
+    input.style.padding = "8px";
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { this.onSubmit(input.value.trim()); this.close(); }
+      if (e.key === "Escape") this.close();
+    });
+    const btns = this.contentEl.createDiv({ cls: "oc-confirm-buttons" });
+    btns.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
+    btns.createEl("button", { text: "Rename", cls: "mod-cta" }).addEventListener("click", () => {
+      this.onSubmit(input.value.trim()); this.close();
+    });
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+  }
+  onClose() { this.contentEl.empty(); }
 };
 
 // ============================================
-// src/OpenClawView.ts — Main Chat View (v2: complete rewrite)
+// Main Chat View (v2.0)
 // ============================================
-var OPENCLAW_VIEW_TYPE = "openclaw-chat-view";
+var CLAWDIAN_VIEW_TYPE = "clawdian-chat-view";
 
-var OpenClawView = class extends import_obsidian.ItemView {
+var ClawdianView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -560,9 +628,14 @@ var OpenClawView = class extends import_obsidian.ItemView {
     this.autoScrollEnabled = true;
     this.streamingEl = null;
     this.streamingContentEl = null;
+    this.thinkingEl = null;
+    this.thinkingContentEl = null;
+    this.mentionPopup = null;
+    this.attachedFiles = []; // files attached via @
+    this.pastedImages = []; // images pasted/dropped
   }
 
-  getViewType() { return OPENCLAW_VIEW_TYPE; }
+  getViewType() { return CLAWDIAN_VIEW_TYPE; }
   getDisplayText() { return "Clawdian"; }
   getIcon() { return "clawdian-lobster"; }
 
@@ -573,34 +646,26 @@ var OpenClawView = class extends import_obsidian.ItemView {
 
     // ---- Header ----
     const header = container.createDiv({ cls: "oc-header" });
-
-    // Tab bar
     this.tabBarEl = header.createDiv({ cls: "oc-tab-bar" });
-
-    // Header actions
     const actions = header.createDiv({ cls: "oc-header-actions" });
 
     const newBtn = actions.createEl("button", { cls: "oc-header-btn", attr: { "aria-label": "New Chat" } });
-    newBtn.innerHTML = ICONS.plus;
+    newBtn.innerHTML = ICON.plus;
     newBtn.addEventListener("click", () => this.newConversation());
 
     const clearBtn = actions.createEl("button", { cls: "oc-header-btn", attr: { "aria-label": "Delete Chat" } });
-    clearBtn.innerHTML = ICONS.trash;
+    clearBtn.innerHTML = ICON.trash;
     clearBtn.addEventListener("click", () => this.deleteCurrentConversation());
 
     // ---- Messages ----
     const messagesWrapper = container.createDiv({ cls: "oc-messages-wrapper" });
     this.messagesEl = messagesWrapper.createDiv({ cls: "oc-messages" });
-    this.welcomeEl = this.messagesEl.createDiv({ cls: "oc-welcome" });
-    this.welcomeEl.createDiv({ cls: "oc-welcome-greeting", text: "\uD83E\uDD9E Hey, Zorba" });
-    this.welcomeEl.createDiv({ cls: "oc-welcome-hint", text: "Enter to send, Shift+Enter for new line." });
 
     // Scroll to bottom button
     this.scrollBtnEl = messagesWrapper.createDiv({ cls: "oc-scroll-btn" });
-    this.scrollBtnEl.innerHTML = ICONS.chevronDown;
+    this.scrollBtnEl.innerHTML = ICON.chevronDown;
     this.scrollBtnEl.addEventListener("click", () => this.scrollToBottom());
 
-    // Scroll detection for auto-scroll
     this.messagesEl.addEventListener("scroll", () => {
       const { scrollTop, scrollHeight, clientHeight } = this.messagesEl;
       const atBottom = scrollHeight - scrollTop - clientHeight < 30;
@@ -612,23 +677,84 @@ var OpenClawView = class extends import_obsidian.ItemView {
     const inputContainer = container.createDiv({ cls: "oc-input-container" });
     const inputWrapper = inputContainer.createDiv({ cls: "oc-input-wrapper" });
 
-    // Context row
+    // Context row (attached files + images)
     this.contextRowEl = inputWrapper.createDiv({ cls: "oc-context-row" });
 
     // Textarea
     this.inputEl = inputWrapper.createEl("textarea", {
       cls: "oc-input",
-      attr: { placeholder: "Message Clawdian...", rows: "1" }
+      attr: { placeholder: "Message Clawdian... (@ to mention files)", rows: "1" }
     });
 
-    // Auto-resize
-    this.inputEl.addEventListener("input", () => this.autoResizeInput());
+    this.inputEl.addEventListener("input", () => {
+      this.autoResizeInput();
+      if (this.mentionPopup) this.mentionPopup.handleInput();
+    });
 
-    // Enter to send, Shift+Enter for newline
+    // @ mention support
+    this.mentionPopup = new FileMentionPopup(this.app, this.inputEl, (file, mentionStart) => {
+      const val = this.inputEl.value;
+      const cursorPos = this.inputEl.selectionStart;
+      const before = val.slice(0, mentionStart);
+      const after = val.slice(cursorPos);
+      this.inputEl.value = before + `@${file.basename} ` + after;
+      this.inputEl.selectionStart = this.inputEl.selectionEnd = before.length + file.basename.length + 2;
+      this.inputEl.focus();
+      // Track attached file
+      if (!this.attachedFiles.find(f => f.path === file.path)) {
+        this.attachedFiles.push(file);
+        this.updateContextRow();
+      }
+    });
+
     this.inputEl.addEventListener("keydown", (e) => {
+      // @ mention popup handling
+      if (this.mentionPopup && this.mentionPopup.handleKey(e)) return;
+
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         this.sendMessage();
+      }
+    });
+
+    // Detect @ trigger
+    this.inputEl.addEventListener("keyup", (e) => {
+      if (e.key === "@" || e.key === "Process") {
+        const pos = this.inputEl.selectionStart - 1;
+        const val = this.inputEl.value;
+        if (pos >= 0 && val[pos] === "@" && (pos === 0 || val[pos - 1] === " " || val[pos - 1] === "\n")) {
+          this.mentionPopup.show(pos);
+        }
+      }
+    });
+
+    // Image paste
+    this.inputEl.addEventListener("paste", (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (blob) this.addPastedImage(blob);
+          return;
+        }
+      }
+    });
+
+    // Image drag & drop
+    inputWrapper.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      inputWrapper.addClass("drag-over");
+    });
+    inputWrapper.addEventListener("dragleave", () => inputWrapper.removeClass("drag-over"));
+    inputWrapper.addEventListener("drop", (e) => {
+      e.preventDefault();
+      inputWrapper.removeClass("drag-over");
+      const files = e.dataTransfer?.files;
+      if (!files) return;
+      for (const file of files) {
+        if (file.type.startsWith("image/")) this.addPastedImage(file);
       }
     });
 
@@ -641,7 +767,7 @@ var OpenClawView = class extends import_obsidian.ItemView {
       cls: "oc-toolbar-btn" + (this.plugin.settings.includeCurrentNote ? " active" : ""),
       attr: { "aria-label": "Include current note" }
     });
-    this.noteToggleBtn.innerHTML = ICONS.file;
+    this.noteToggleBtn.innerHTML = ICON.file;
     this.noteToggleBtn.addEventListener("click", () => {
       this.plugin.settings.includeCurrentNote = !this.plugin.settings.includeCurrentNote;
       this.noteToggleBtn.toggleClass("active", this.plugin.settings.includeCurrentNote);
@@ -649,8 +775,39 @@ var OpenClawView = class extends import_obsidian.ItemView {
       this.updateContextRow();
     });
 
+    // Image attach button
+    const imgBtn = toolbarLeft.createEl("button", {
+      cls: "oc-toolbar-btn",
+      attr: { "aria-label": "Attach image" }
+    });
+    imgBtn.innerHTML = ICON.image;
+    imgBtn.addEventListener("click", () => {
+      const fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.accept = "image/*";
+      fileInput.multiple = true;
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files) {
+          for (const f of fileInput.files) this.addPastedImage(f);
+        }
+      });
+      fileInput.click();
+    });
+
     const toolbarRight = toolbar.createDiv({ cls: "oc-toolbar-right" });
-    toolbarRight.createDiv({ cls: "oc-send-hint", text: "Enter \u2192 send \u00B7 Shift+Enter \u2192 newline" });
+
+    // Stop button (visible during streaming)
+    this.stopBtn = toolbarRight.createEl("button", {
+      cls: "oc-toolbar-btn oc-stop-btn",
+      attr: { "aria-label": "Stop generating" }
+    });
+    this.stopBtn.innerHTML = ICON.stop;
+    this.stopBtn.style.display = "none";
+    this.stopBtn.addEventListener("click", () => {
+      if (this.abortController) this.abortController.abort();
+    });
+
+    toolbarRight.createDiv({ cls: "oc-send-hint", text: "Enter \u2192 send \u00B7 @ \u2192 files" });
 
     // ---- Initialize ----
     await this.plugin.conversationStore.loadAll();
@@ -658,13 +815,10 @@ var OpenClawView = class extends import_obsidian.ItemView {
     if (convs.length === 0) {
       this.newConversation();
     } else {
-      // Restore tabs from saved state
       const tabState = this.plugin.settings._tabState;
-      if (tabState && tabState.tabs && tabState.tabs.length > 0) {
+      if (tabState?.tabs?.length > 0) {
         this.openTabs = tabState.tabs.filter(id => this.plugin.conversationStore.getConversation(id));
-        if (this.openTabs.length === 0) {
-          this.openTabs = [convs[0].id];
-        }
+        if (this.openTabs.length === 0) this.openTabs = [convs[0].id];
         const activeId = tabState.activeId;
         this.switchToConversation(this.openTabs.includes(activeId) ? activeId : this.openTabs[0]);
       } else {
@@ -674,20 +828,26 @@ var OpenClawView = class extends import_obsidian.ItemView {
     }
 
     this.updateContextRow();
-
-    // Listen for active file changes to update context row
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.updateContextRow()));
   }
 
   async onClose() {
-    // Save tab state
     if (this.openTabs) {
-      this.plugin.settings._tabState = {
-        tabs: this.openTabs,
-        activeId: this.activeConvId
-      };
+      this.plugin.settings._tabState = { tabs: this.openTabs, activeId: this.activeConvId };
       await this.plugin.saveSettings();
     }
+  }
+
+  // ---- Image Handling ----
+
+  async addPastedImage(blob) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result;
+      this.pastedImages.push({ data: base64, name: blob.name || `image-${Date.now()}.png`, type: blob.type });
+      this.updateContextRow();
+    };
+    reader.readAsDataURL(blob);
   }
 
   // ---- Tab Management ----
@@ -702,23 +862,44 @@ var OpenClawView = class extends import_obsidian.ItemView {
       if (!conv) continue;
 
       const tab = this.tabBarEl.createDiv({ cls: "oc-tab" + (convId === this.activeConvId ? " active" : "") });
-
       const label = conv.title.length > 16 ? conv.title.slice(0, 16) + "\u2026" : conv.title;
       tab.createSpan({ text: label });
 
       if (this.openTabs.length > 1) {
         const closeBtn = tab.createSpan({ cls: "oc-tab-close", text: "\u00D7" });
-        closeBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          this.closeTab(convId);
-        });
+        closeBtn.addEventListener("click", (e) => { e.stopPropagation(); this.closeTab(convId); });
       }
 
       tab.addEventListener("click", () => this.switchToConversation(convId));
 
-      if (this.isStreaming && convId === this.activeConvId) {
-        tab.addClass("streaming");
-      }
+      // Right-click context menu
+      tab.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        const menu = new import_obsidian.Menu();
+        menu.addItem(item => item.setTitle("Rename").setIcon("pencil").onClick(() => {
+          new RenameModal(this.app, conv.title, (newTitle) => {
+            if (newTitle) {
+              this.plugin.conversationStore.updateTitle(convId, newTitle);
+              this.plugin.conversationStore.saveConversation(convId);
+              this.renderTabs();
+            }
+          }).open();
+        }));
+        menu.addItem(item => item.setTitle("Close").setIcon("x").onClick(() => this.closeTab(convId)));
+        if (this.openTabs.length > 1) {
+          menu.addItem(item => item.setTitle("Close others").setIcon("x-circle").onClick(() => {
+            this.openTabs = [convId];
+            this.switchToConversation(convId);
+          }));
+        }
+        menu.addSeparator();
+        menu.addItem(item => item.setTitle("Delete").setIcon("trash").onClick(() => {
+          this.deleteConversation(convId);
+        }));
+        menu.showAtMouseEvent(e);
+      });
+
+      if (this.isStreaming && convId === this.activeConvId) tab.addClass("streaming");
     }
   }
 
@@ -733,19 +914,15 @@ var OpenClawView = class extends import_obsidian.ItemView {
     const idx = this.openTabs.indexOf(convId);
     this.openTabs = this.openTabs.filter(id => id !== convId);
     if (this.activeConvId === convId) {
-      const newIdx = Math.min(idx, this.openTabs.length - 1);
-      this.switchToConversation(this.openTabs[newIdx]);
+      this.switchToConversation(this.openTabs[Math.min(idx, this.openTabs.length - 1)]);
     } else {
       this.renderTabs();
     }
   }
 
-  async deleteCurrentConversation() {
-    if (!this.activeConvId) return;
-    const conv = this.plugin.conversationStore.getConversation(this.activeConvId);
+  async deleteConversation(convId) {
+    const conv = this.plugin.conversationStore.getConversation(convId);
     if (!conv) return;
-
-    // Simple confirmation
     if (conv.messages.length > 0) {
       const confirmed = await new Promise(resolve => {
         const modal = new import_obsidian.Modal(this.app);
@@ -758,20 +935,20 @@ var OpenClawView = class extends import_obsidian.ItemView {
       });
       if (!confirmed) return;
     }
-
-    this.plugin.conversationStore.deleteConversation(this.activeConvId);
-    this.closeTab(this.activeConvId);
-
-    if (this.openTabs.length === 0) {
-      this.newConversation();
+    this.plugin.conversationStore.deleteConversation(convId);
+    if (this.openTabs.includes(convId)) {
+      this.closeTab(convId);
     }
+    if (this.openTabs.length === 0) this.newConversation();
+  }
+
+  async deleteCurrentConversation() {
+    if (this.activeConvId) await this.deleteConversation(this.activeConvId);
   }
 
   switchToConversation(convId) {
     this.activeConvId = convId;
-    if (!this.openTabs.includes(convId)) {
-      this.openTabs = [...this.openTabs, convId];
-    }
+    if (!this.openTabs.includes(convId)) this.openTabs = [...this.openTabs, convId];
     this.renderTabs();
     this.renderMessages();
   }
@@ -782,207 +959,307 @@ var OpenClawView = class extends import_obsidian.ItemView {
     this.messagesEl.empty();
     const conv = this.plugin.conversationStore.getConversation(this.activeConvId);
     if (!conv || conv.messages.length === 0) {
-      this.welcomeEl = this.messagesEl.createDiv({ cls: "oc-welcome" });
-      this.welcomeEl.createDiv({ cls: "oc-welcome-greeting", text: "\uD83E\uDD9E Hey, Zorba" });
-      this.welcomeEl.createDiv({ cls: "oc-welcome-hint", text: "Enter to send, Shift+Enter for new line." });
+      const welcome = this.messagesEl.createDiv({ cls: "oc-welcome" });
+      welcome.createDiv({ cls: "oc-welcome-greeting", text: "\uD83E\uDD9E Hey, Zorba" });
+      welcome.createDiv({ cls: "oc-welcome-hint", text: "Enter to send \u00B7 @ to attach files \u00B7 paste images" });
       return;
     }
-
-    for (const msg of conv.messages) {
-      this.appendMessageEl(msg.role, msg.content);
+    for (let i = 0; i < conv.messages.length; i++) {
+      const msg = conv.messages[i];
+      this.appendMessageEl(msg.role, msg.content, i, msg.thinking);
     }
     this.scrollToBottom();
   }
 
-  appendMessageEl(role, content) {
-    // Hide welcome
-    if (this.welcomeEl) {
-      this.welcomeEl.style.display = "none";
-    }
+  appendMessageEl(role, content, msgIndex, thinking) {
+    const msgEl = this.messagesEl.createDiv({ cls: `oc-message oc-message-${role}` });
 
-    const msgEl = this.messagesEl.createDiv({
-      cls: `oc-message oc-message-${role}`
-    });
+    // Thinking block (collapsible)
+    if (thinking && role === "assistant") {
+      const thinkWrap = msgEl.createDiv({ cls: "oc-thinking" });
+      const thinkHeader = thinkWrap.createDiv({ cls: "oc-thinking-header" });
+      thinkHeader.innerHTML = `${ICON.brain} <span>Thinking</span> ${ICON.chevronRight}`;
+      const thinkBody = thinkWrap.createDiv({ cls: "oc-thinking-body" });
+      thinkBody.style.display = "none";
+      thinkBody.setText(thinking);
+      let expanded = false;
+      thinkHeader.addEventListener("click", () => {
+        expanded = !expanded;
+        thinkBody.style.display = expanded ? "block" : "none";
+        thinkHeader.toggleClass("expanded", expanded);
+      });
+    }
 
     const contentEl = msgEl.createDiv({ cls: "oc-message-content" });
 
     if (role === "assistant") {
-      // Render markdown
-      import_obsidian.MarkdownRenderer.render(
-        this.app, content, contentEl, "", this.plugin
-      );
+      import_obsidian.MarkdownRenderer.render(this.app, content, contentEl, "", this.plugin);
     } else if (role === "error") {
       contentEl.createEl("code").setText(content);
     } else {
-      // User message: render as text with line breaks
       const lines = content.split("\n");
-      lines.forEach((line, i) => {
-        contentEl.appendText(line);
-        if (i < lines.length - 1) contentEl.createEl("br");
-      });
+      lines.forEach((line, i) => { contentEl.appendText(line); if (i < lines.length - 1) contentEl.createEl("br"); });
     }
 
-    // Copy button (hover action)
+    // Message actions
     if (role === "assistant" || role === "user") {
       const actionsEl = msgEl.createDiv({ cls: "oc-message-actions" });
+
+      // Copy
       const copyBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Copy" } });
-      copyBtn.innerHTML = ICONS.copy;
+      copyBtn.innerHTML = ICON.copy;
       copyBtn.addEventListener("click", async () => {
         await navigator.clipboard.writeText(content);
-        copyBtn.innerHTML = ICONS.check;
+        copyBtn.innerHTML = ICON.check;
         copyBtn.addClass("copied");
-        setTimeout(() => {
-          copyBtn.innerHTML = ICONS.copy;
-          copyBtn.removeClass("copied");
-        }, 1500);
+        setTimeout(() => { copyBtn.innerHTML = ICON.copy; copyBtn.removeClass("copied"); }, 1500);
       });
+
+      if (role === "user" && typeof msgIndex === "number") {
+        // Edit & resend
+        const editBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Edit & resend" } });
+        editBtn.innerHTML = ICON.edit;
+        editBtn.addEventListener("click", () => {
+          // Truncate conversation from this message onward
+          this.plugin.conversationStore.truncateFrom(this.activeConvId, msgIndex);
+          this.inputEl.value = content;
+          this.autoResizeInput();
+          this.renderMessages();
+          this.inputEl.focus();
+        });
+      }
+
+      if (role === "assistant" && typeof msgIndex === "number") {
+        // Regenerate
+        const regenBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Regenerate" } });
+        regenBtn.innerHTML = ICON.refresh;
+        regenBtn.addEventListener("click", () => {
+          // Remove this assistant message and resend the previous user message
+          this.plugin.conversationStore.truncateFrom(this.activeConvId, msgIndex);
+          this.renderMessages();
+          this.resendLastUserMessage();
+        });
+      }
     }
 
-    if (this.autoScrollEnabled) {
-      this.scrollToBottom();
-    }
-
+    if (this.autoScrollEnabled) this.scrollToBottom();
     return msgEl;
   }
 
   // ---- Streaming Message ----
 
   startStreamingMessage() {
-    if (this.welcomeEl) this.welcomeEl.style.display = "none";
-
-    // Loading indicator
+    // Thinking indicator (shown first, before content arrives)
     this.streamingEl = this.messagesEl.createDiv({ cls: "oc-message oc-message-assistant" });
+
+    this.thinkingEl = this.streamingEl.createDiv({ cls: "oc-thinking streaming" });
+    this.thinkingHeaderEl = this.thinkingEl.createDiv({ cls: "oc-thinking-header expanded" });
+    this.thinkingHeaderEl.innerHTML = `${ICON.brain} <span>Thinking...</span>`;
+    this.thinkingContentEl = this.thinkingEl.createDiv({ cls: "oc-thinking-body" });
+    this.thinkingContentEl.style.display = "block";
+    this.thinkingEl.style.display = "none"; // Hidden until thinking content arrives
+
     this.streamingContentEl = this.streamingEl.createDiv({ cls: "oc-message-content" });
 
     const loadingEl = this.streamingContentEl.createDiv({ cls: "oc-loading" });
     const dots = loadingEl.createDiv({ cls: "oc-loading-dots" });
-    dots.createEl("span");
-    dots.createEl("span");
-    dots.createEl("span");
+    dots.createEl("span"); dots.createEl("span"); dots.createEl("span");
 
     this.scrollToBottom();
-    return this.streamingEl;
+  }
+
+  updateThinking(thinkingText) {
+    if (!this.thinkingEl || !this.thinkingContentEl) return;
+    this.thinkingEl.style.display = "block";
+    this.thinkingContentEl.setText(thinkingText);
+    if (this.autoScrollEnabled) this.scrollToBottom();
   }
 
   updateStreamingMessage(fullText) {
     if (!this.streamingContentEl) return;
     this.streamingContentEl.empty();
-    import_obsidian.MarkdownRenderer.render(
-      this.app, fullText, this.streamingContentEl, "", this.plugin
-    );
+    import_obsidian.MarkdownRenderer.render(this.app, fullText, this.streamingContentEl, "", this.plugin);
     if (this.autoScrollEnabled) this.scrollToBottom();
   }
 
-  finalizeStreamingMessage(fullText) {
+  finalizeStreamingMessage(fullText, thinkingText) {
     if (!this.streamingEl || !this.streamingContentEl) return;
+
+    // Finalize thinking block
+    if (thinkingText && this.thinkingEl) {
+      this.thinkingEl.removeClass("streaming");
+      this.thinkingHeaderEl.innerHTML = `${ICON.brain} <span>Thinking</span> ${ICON.chevronRight}`;
+      this.thinkingContentEl.style.display = "none";
+      this.thinkingHeaderEl.removeClass("expanded");
+      let expanded = false;
+      this.thinkingHeaderEl.addEventListener("click", () => {
+        expanded = !expanded;
+        this.thinkingContentEl.style.display = expanded ? "block" : "none";
+        this.thinkingHeaderEl.toggleClass("expanded", expanded);
+      });
+    } else if (this.thinkingEl) {
+      this.thinkingEl.remove();
+    }
 
     // Re-render final content
     this.streamingContentEl.empty();
-    import_obsidian.MarkdownRenderer.render(
-      this.app, fullText, this.streamingContentEl, "", this.plugin
-    );
+    import_obsidian.MarkdownRenderer.render(this.app, fullText, this.streamingContentEl, "", this.plugin);
 
-    // Add copy button
+    // Add action buttons
     const actionsEl = this.streamingEl.createDiv({ cls: "oc-message-actions" });
+
     const copyBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Copy" } });
-    copyBtn.innerHTML = ICONS.copy;
+    copyBtn.innerHTML = ICON.copy;
     copyBtn.addEventListener("click", async () => {
       await navigator.clipboard.writeText(fullText);
-      copyBtn.innerHTML = ICONS.check;
+      copyBtn.innerHTML = ICON.check;
       copyBtn.addClass("copied");
-      setTimeout(() => { copyBtn.innerHTML = ICONS.copy; copyBtn.removeClass("copied"); }, 1500);
+      setTimeout(() => { copyBtn.innerHTML = ICON.copy; copyBtn.removeClass("copied"); }, 1500);
+    });
+
+    const regenBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Regenerate" } });
+    regenBtn.innerHTML = ICON.refresh;
+    regenBtn.addEventListener("click", () => {
+      // Find msg index
+      const conv = this.plugin.conversationStore.getConversation(this.activeConvId);
+      if (conv) {
+        const idx = conv.messages.length - 1;
+        this.plugin.conversationStore.truncateFrom(this.activeConvId, idx);
+        this.renderMessages();
+        this.resendLastUserMessage();
+      }
     });
 
     this.streamingEl = null;
     this.streamingContentEl = null;
+    this.thinkingEl = null;
+    this.thinkingHeaderEl = null;
+    this.thinkingContentEl = null;
   }
 
   // ---- Send Message ----
 
+  async resendLastUserMessage() {
+    const conv = this.plugin.conversationStore.getConversation(this.activeConvId);
+    if (!conv || conv.messages.length === 0) return;
+    const lastUser = [...conv.messages].reverse().find(m => m.role === "user");
+    if (!lastUser) return;
+    await this._doSend(lastUser.content, true);
+  }
+
   async sendMessage() {
     const content = this.inputEl.value.trim();
     if (!content || this.isStreaming) return;
-
     this.inputEl.value = "";
     this.autoResizeInput();
+    await this._doSend(content, false);
+  }
+
+  async _doSend(content, isResend) {
     this.isStreaming = true;
     this.autoScrollEnabled = true;
-    this.renderTabs(); // Show streaming indicator on tab
+    this.stopBtn.style.display = "";
+    this.renderTabs();
 
     const convId = this.activeConvId;
     if (!convId) return;
 
-    // Build user message with optional context
+    // Build enriched content with file context
     let userContent = content;
+    const contextParts = [];
+
+    // @ mentioned files
+    if (this.attachedFiles.length > 0) {
+      for (const file of this.attachedFiles) {
+        try {
+          const fileContent = await this.app.vault.read(file);
+          contextParts.push(`[Attached: ${file.path}]\n\`\`\`\n${fileContent.slice(0, 8000)}\n\`\`\``);
+        } catch (e) {}
+      }
+      this.attachedFiles = [];
+    }
+
+    // Current note
     if (this.plugin.settings.includeCurrentNote) {
       const activeFile = this.app.workspace.getActiveFile();
       if (activeFile instanceof import_obsidian.TFile && activeFile.extension === "md") {
-        // Don't include conversation JSON files
-        if (!activeFile.path.startsWith(this.plugin.settings.conversationsPath)) {
-          const noteContent = await this.app.vault.read(activeFile);
-          if (noteContent.trim()) {
-            userContent += `\n\n[Currently viewing: ${activeFile.path}]\n\`\`\`\n${noteContent.slice(0, 4000)}\n\`\`\``;
-          }
+        if (!activeFile.path.startsWith(this.plugin.settings.conversationsPath || "Clawdian/conversations")) {
+          try {
+            const noteContent = await this.app.vault.read(activeFile);
+            if (noteContent.trim()) contextParts.push(`[Currently viewing: ${activeFile.path}]\n\`\`\`\n${noteContent.slice(0, 4000)}\n\`\`\``);
+          } catch (e) {}
         }
       }
     }
 
-    // Add to store & render
-    this.plugin.conversationStore.addMessage(convId, "user", content);
-    this.appendMessageEl("user", content);
+    if (contextParts.length > 0) userContent += "\n\n" + contextParts.join("\n\n");
 
-    // Start streaming UI
+    // Handle images — build multimodal content
+    let apiContent = userContent;
+    if (this.pastedImages.length > 0) {
+      apiContent = [
+        { type: "text", text: userContent }
+      ];
+      for (const img of this.pastedImages) {
+        apiContent.push({
+          type: "image_url",
+          image_url: { url: img.data }
+        });
+      }
+      this.pastedImages = [];
+    }
+
+    // Add to store & render
+    if (!isResend) {
+      this.plugin.conversationStore.addMessage(convId, "user", content);
+      this.appendMessageEl("user", content);
+    }
+
     this.startStreamingMessage();
     this.abortController = new AbortController();
+    this.updateContextRow();
 
     try {
-      // Build messages for API (use full content with context for the last user message)
       const history = this.plugin.conversationStore.getMessages(convId);
-      // Replace last message content with the context-enriched version
       const apiMessages = history.map((m, i) => {
         if (i === history.length - 1 && m.role === "user") {
-          return { role: "user", content: userContent };
+          return { role: "user", content: apiContent };
         }
         return m;
       });
 
-      const fullText = await this.plugin.api.chat(
+      const result = await this.plugin.api.chat(
         apiMessages,
         (text, _delta) => this.updateStreamingMessage(text),
+        (thinkText) => this.updateThinking(thinkText),
         this.abortController.signal
       );
 
-      // Strip action blocks before storing
+      const fullText = result.text;
+      const thinkingText = result.thinking;
+
       const cleanText = this.plugin.actionExecutor.stripActionBlocks(fullText);
       const actions = this.plugin.actionExecutor.parseActions(fullText);
 
-      this.finalizeStreamingMessage(cleanText);
-      this.plugin.conversationStore.addMessage(convId, "assistant", cleanText);
+      this.finalizeStreamingMessage(cleanText, thinkingText);
+      this.plugin.conversationStore.addMessage(convId, "assistant", cleanText, { thinking: thinkingText || undefined });
 
-      // Execute file actions if any
-      if (actions.length > 0) {
-        await this.plugin.actionExecutor.execute(actions);
-      }
-
-      // Save conversation
+      if (actions.length > 0) await this.plugin.actionExecutor.execute(actions);
       await this.plugin.conversationStore.saveConversation(convId);
 
     } catch (err) {
       if (err.name === "AbortError") {
-        this.finalizeStreamingMessage("*(cancelled)*");
+        this.finalizeStreamingMessage("*(cancelled)*", "");
       } else {
         const errMsg = err instanceof Error ? err.message : String(err);
-        if (this.streamingEl) {
-          this.streamingEl.remove();
-          this.streamingEl = null;
-          this.streamingContentEl = null;
-        }
+        if (this.streamingEl) { this.streamingEl.remove(); this.streamingEl = null; this.streamingContentEl = null; }
         this.appendMessageEl("error", errMsg);
       }
     }
 
     this.isStreaming = false;
     this.abortController = null;
+    this.stopBtn.style.display = "none";
     this.renderTabs();
     this.inputEl.focus();
   }
@@ -995,79 +1272,82 @@ var OpenClawView = class extends import_obsidian.ItemView {
   }
 
   scrollToBottom() {
-    requestAnimationFrame(() => {
-      this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
-    });
+    requestAnimationFrame(() => { this.messagesEl.scrollTop = this.messagesEl.scrollHeight; });
   }
 
   updateContextRow() {
     this.contextRowEl.empty();
-    if (!this.plugin.settings.includeCurrentNote) {
-      this.contextRowEl.removeClass("has-content");
-      return;
+    let hasContent = false;
+
+    // Show attached files
+    for (const file of this.attachedFiles) {
+      hasContent = true;
+      const chip = this.contextRowEl.createDiv({ cls: "oc-context-chip" });
+      chip.createSpan({ text: `\uD83D\uDCC4 ${file.basename}` });
+      const removeBtn = chip.createSpan({ cls: "oc-chip-remove", text: "\u00D7" });
+      removeBtn.addEventListener("click", () => {
+        this.attachedFiles = this.attachedFiles.filter(f => f.path !== file.path);
+        this.updateContextRow();
+      });
     }
 
-    const activeFile = this.app.workspace.getActiveFile();
-    if (activeFile instanceof import_obsidian.TFile && activeFile.extension === "md") {
-      if (!activeFile.path.startsWith(this.plugin.settings.conversationsPath || "Clawdian/conversations")) {
-        this.contextRowEl.addClass("has-content");
-        const chip = this.contextRowEl.createDiv({ cls: "oc-context-chip" });
-        chip.createSpan({ cls: "oc-context-chip-icon", text: "\uD83D\uDCC4" });
-        chip.createSpan({ text: activeFile.basename });
-      } else {
-        this.contextRowEl.removeClass("has-content");
-      }
-    } else {
-      this.contextRowEl.removeClass("has-content");
+    // Show pasted images
+    for (let i = 0; i < this.pastedImages.length; i++) {
+      hasContent = true;
+      const chip = this.contextRowEl.createDiv({ cls: "oc-context-chip" });
+      chip.createSpan({ text: `\uD83D\uDDBC\uFE0F ${this.pastedImages[i].name}` });
+      const removeBtn = chip.createSpan({ cls: "oc-chip-remove", text: "\u00D7" });
+      const idx = i;
+      removeBtn.addEventListener("click", () => {
+        this.pastedImages.splice(idx, 1);
+        this.updateContextRow();
+      });
     }
+
+    // Show current note indicator
+    if (this.plugin.settings.includeCurrentNote) {
+      const activeFile = this.app.workspace.getActiveFile();
+      if (activeFile instanceof import_obsidian.TFile && activeFile.extension === "md") {
+        if (!activeFile.path.startsWith(this.plugin.settings.conversationsPath || "Clawdian/conversations")) {
+          hasContent = true;
+          const chip = this.contextRowEl.createDiv({ cls: "oc-context-chip oc-context-auto" });
+          chip.createSpan({ text: `\uD83D\uDCC4 ${activeFile.basename}` });
+        }
+      }
+    }
+
+    this.contextRowEl.toggleClass("has-content", hasContent);
   }
 };
 
 // ============================================
-// src/settings.ts — Settings Tab (adapted)
+// Settings Tab
 // ============================================
-var OpenClawSettingTab = class extends import_obsidian.PluginSettingTab {
-  constructor(app, plugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
+var ClawdianSettingTab = class extends import_obsidian.PluginSettingTab {
+  constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
   display() {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Chat Settings" });
+    containerEl.createEl("h2", { text: "Clawdian Settings" });
 
     new import_obsidian.Setting(containerEl)
       .setName("Gateway URL")
-      .setDesc("URL of your OpenClaw gateway (no trailing slash)")
-      .addText(text => text
-        .setPlaceholder("http://127.0.0.1:18789")
-        .setValue(this.plugin.settings.gatewayUrl)
-        .onChange(async (val) => {
-          this.plugin.settings.gatewayUrl = val.replace(/\/+$/, "");
-          await this.plugin.saveSettings();
-        }));
+      .setDesc("URL of your OpenClaw gateway")
+      .addText(text => text.setPlaceholder("http://127.0.0.1:18789").setValue(this.plugin.settings.gatewayUrl)
+        .onChange(async (val) => { this.plugin.settings.gatewayUrl = val.replace(/\/+$/, ""); await this.plugin.saveSettings(); }));
 
-    // Token
     const statusInfo = secureTokenStorage.getStatusInfo();
-    const tokenSetting = new import_obsidian.Setting(containerEl)
-      .setName("Gateway Token")
-      .setDesc("Authentication token for OpenClaw gateway");
-
+    const tokenSetting = new import_obsidian.Setting(containerEl).setName("Gateway Token").setDesc("Authentication token");
     const statusEl = containerEl.createDiv({ cls: "oc-token-status" });
-    const icon = statusInfo.secure ? "\uD83D\uDD12" : "\u26A0\uFE0F";
-    statusEl.innerHTML = `<span class="oc-status-${statusInfo.secure ? "secure" : "insecure"}">${icon} ${statusInfo.description}</span>`;
+    statusEl.innerHTML = `<span class="oc-status-${statusInfo.secure ? "secure" : "insecure"}">${statusInfo.secure ? "\uD83D\uDD12" : "\u26A0\uFE0F"} ${statusInfo.description}</span>`;
 
     if (statusInfo.method === "envVar") {
       tokenSetting.addButton(btn => btn.setButtonText("Using Environment Variable").setDisabled(true));
     } else {
-      const currentToken = secureTokenStorage.getToken(
-        this.plugin.settings.gatewayTokenEncrypted,
-        this.plugin.settings.gatewayTokenPlaintext
-      );
+      const currentToken = secureTokenStorage.getToken(this.plugin.settings.gatewayTokenEncrypted, this.plugin.settings.gatewayTokenPlaintext);
       tokenSetting.addText(text => {
-        text.setPlaceholder("Enter your token")
-          .setValue(currentToken)
+        text.setPlaceholder("Enter your token").setValue(currentToken)
           .onChange(async (val) => {
             const { encrypted, plaintext } = secureTokenStorage.setToken(val);
             this.plugin.settings.gatewayTokenEncrypted = encrypted;
@@ -1078,69 +1358,28 @@ var OpenClawSettingTab = class extends import_obsidian.PluginSettingTab {
       });
     }
 
-    new import_obsidian.Setting(containerEl)
-      .setName("Include current note")
-      .setDesc("Automatically attach the focused note as context")
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.includeCurrentNote)
-        .onChange(async (val) => {
-          this.plugin.settings.includeCurrentNote = val;
-          await this.plugin.saveSettings();
-        }));
+    new import_obsidian.Setting(containerEl).setName("Include current note").setDesc("Attach focused note as context")
+      .addToggle(t => t.setValue(this.plugin.settings.includeCurrentNote).onChange(async v => { this.plugin.settings.includeCurrentNote = v; await this.plugin.saveSettings(); }));
 
-    new import_obsidian.Setting(containerEl)
-      .setName("Show file actions")
-      .setDesc("Display file action indicators in chat messages")
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.showActionsInChat)
-        .onChange(async (val) => {
-          this.plugin.settings.showActionsInChat = val;
-          await this.plugin.saveSettings();
-        }));
+    new import_obsidian.Setting(containerEl).setName("Show file actions").setDesc("Display file action indicators")
+      .addToggle(t => t.setValue(this.plugin.settings.showActionsInChat).onChange(async v => { this.plugin.settings.showActionsInChat = v; await this.plugin.saveSettings(); }));
 
-    // Audit log
     containerEl.createEl("h3", { text: "Audit Log" });
+    new import_obsidian.Setting(containerEl).setName("Enable audit logging")
+      .addToggle(t => t.setValue(this.plugin.settings.auditLogEnabled).onChange(async v => { this.plugin.settings.auditLogEnabled = v; await this.plugin.saveSettings(); }));
+    new import_obsidian.Setting(containerEl).setName("Audit log path")
+      .addText(t => t.setPlaceholder("Clawdian/audit-log.md").setValue(this.plugin.settings.auditLogPath)
+        .onChange(async v => { this.plugin.settings.auditLogPath = v || "Clawdian/audit-log.md"; await this.plugin.saveSettings(); }));
 
-    new import_obsidian.Setting(containerEl)
-      .setName("Enable audit logging")
-      .setDesc("Log file actions to a markdown file")
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.auditLogEnabled)
-        .onChange(async (val) => {
-          this.plugin.settings.auditLogEnabled = val;
-          await this.plugin.saveSettings();
-        }));
-
-    new import_obsidian.Setting(containerEl)
-      .setName("Audit log path")
-      .addText(text => text
-        .setPlaceholder("Clawdian/audit-log.md")
-        .setValue(this.plugin.settings.auditLogPath)
-        .onChange(async (val) => {
-          this.plugin.settings.auditLogPath = val || "Clawdian/audit-log.md";
-          await this.plugin.saveSettings();
-        }));
-
-    // Storage
     containerEl.createEl("h3", { text: "Storage" });
+    new import_obsidian.Setting(containerEl).setName("Conversations folder")
+      .addText(t => t.setPlaceholder("Clawdian/conversations").setValue(this.plugin.settings.conversationsPath)
+        .onChange(async v => { this.plugin.settings.conversationsPath = v || "Clawdian/conversations"; await this.plugin.saveSettings(); }));
 
-    new import_obsidian.Setting(containerEl)
-      .setName("Conversations folder")
-      .setDesc("Where to save conversation history (relative to vault root)")
-      .addText(text => text
-        .setPlaceholder("Clawdian/conversations")
-        .setValue(this.plugin.settings.conversationsPath)
-        .onChange(async (val) => {
-          this.plugin.settings.conversationsPath = val || "Clawdian/conversations";
-          await this.plugin.saveSettings();
-        }));
-
-    // Test connection
     containerEl.createEl("h3", { text: "Connection Test" });
     const testContainer = containerEl.createDiv({ cls: "oc-test-container" });
     const testBtn = testContainer.createEl("button", { text: "Test Connection" });
     const testResult = testContainer.createEl("span", { cls: "oc-test-result" });
-
     testBtn.addEventListener("click", async () => {
       testResult.setText("Testing...");
       testResult.removeClass("oc-test-success", "oc-test-error");
@@ -1153,68 +1392,145 @@ var OpenClawSettingTab = class extends import_obsidian.PluginSettingTab {
         testResult.addClass("oc-test-error");
       }
     });
-
-    // Security info
-    containerEl.createEl("h3", { text: "Security" });
-    const secInfo = containerEl.createDiv({ cls: "oc-security-info" });
-    secInfo.innerHTML = `
-      <p><strong>Token Storage (priority order):</strong></p>
-      <ol>
-        <li><strong>Environment Variable</strong> \u2014 Set <code>OPENCLAW_TOKEN</code></li>
-        <li><strong>OS Keychain</strong> \u2014 Keychain (macOS), DPAPI (Windows), libsecret (Linux)</li>
-        <li><strong>Plaintext</strong> \u2014 Avoid syncing <code>.obsidian/plugins/obsidian-openclaw/</code></li>
-      </ol>
-    `;
   }
 };
 
 // ============================================
-// main.ts — Plugin Entry Point
+// Plugin Entry Point
 // ============================================
-var OpenClawPlugin = class extends import_obsidian.Plugin {
+var ClawdianPlugin = class extends import_obsidian.Plugin {
   async onload() {
     await this.loadSettings();
-    this.api = new OpenClawAPI(this.settings);
+    this.api = new ClawdianAPI(this.settings);
     this.actionExecutor = new ActionExecutor(this.app, () => this.settings);
     this.conversationStore = new ConversationStore(this.app, () => this.settings);
 
-    // Register custom lobster icon
     (0, import_obsidian.addIcon)("clawdian-lobster", LOBSTER_ICON);
 
-    this.registerView(OPENCLAW_VIEW_TYPE, (leaf) => new OpenClawView(leaf, this));
+    this.registerView(CLAWDIAN_VIEW_TYPE, (leaf) => new ClawdianView(leaf, this));
+    // Backwards compat: re-register old view type so Obsidian doesn't error on workspace restore
+    this.registerView("openclaw-chat-view", (leaf) => new ClawdianView(leaf, this));
 
     this.addRibbonIcon("clawdian-lobster", "Open Clawdian", () => this.activateView());
 
-    this.addCommand({
-      id: "open-openclaw-chat",
-      name: "Open Clawdian",
-      callback: () => this.activateView()
-    });
+    // ---- Commands ----
+    this.addCommand({ id: "open-chat", name: "Open Clawdian", callback: () => this.activateView() });
 
     this.addCommand({
-      id: "new-openclaw-chat",
-      name: "New Clawdian Chat",
+      id: "new-chat", name: "New Chat",
       callback: async () => {
         await this.activateView();
-        const leaves = this.app.workspace.getLeavesOfType(OPENCLAW_VIEW_TYPE);
+        const leaves = this.app.workspace.getLeavesOfType(CLAWDIAN_VIEW_TYPE);
+        if (leaves.length > 0) { const view = leaves[0].view; if (view instanceof ClawdianView) view.newConversation(); }
+      }
+    });
+
+    // Send selection to Clawdian
+    this.addCommand({
+      id: "send-selection", name: "Send selection to Clawdian",
+      editorCallback: async (editor) => {
+        const selection = editor.getSelection();
+        if (!selection) { new import_obsidian.Notice("No text selected"); return; }
+        await this.activateView();
+        const leaves = this.app.workspace.getLeavesOfType(CLAWDIAN_VIEW_TYPE);
         if (leaves.length > 0) {
           const view = leaves[0].view;
-          if (view instanceof OpenClawView) view.newConversation();
+          if (view instanceof ClawdianView) {
+            view.inputEl.value = selection;
+            view.autoResizeInput();
+            view.inputEl.focus();
+          }
         }
       }
     });
 
-    this.addSettingTab(new OpenClawSettingTab(this.app, this));
-    console.log("Clawdian v1.0 loaded \uD83E\uDD9E");
+    // Summarize current note
+    this.addCommand({
+      id: "summarize-note", name: "Summarize current note",
+      editorCallback: async (editor, markdownView) => {
+        const file = markdownView.file;
+        if (!file) { new import_obsidian.Notice("No file open"); return; }
+        await this.activateView();
+        const leaves = this.app.workspace.getLeavesOfType(CLAWDIAN_VIEW_TYPE);
+        if (leaves.length > 0) {
+          const view = leaves[0].view;
+          if (view instanceof ClawdianView) {
+            view.inputEl.value = `Summarize this note: ${file.basename}`;
+            view.autoResizeInput();
+            view.sendMessage();
+          }
+        }
+      }
+    });
+
+    // Ask about selection
+    this.addCommand({
+      id: "ask-about-selection", name: "Ask Clawdian about selection",
+      editorCallback: async (editor) => {
+        const selection = editor.getSelection();
+        if (!selection) { new import_obsidian.Notice("No text selected"); return; }
+        await this.activateView();
+        const leaves = this.app.workspace.getLeavesOfType(CLAWDIAN_VIEW_TYPE);
+        if (leaves.length > 0) {
+          const view = leaves[0].view;
+          if (view instanceof ClawdianView) {
+            view.inputEl.value = `Explain this:\n\n${selection}`;
+            view.autoResizeInput();
+            view.inputEl.focus();
+          }
+        }
+      }
+    });
+
+    // ---- Editor context menu ----
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, editor) => {
+        const selection = editor.getSelection();
+        if (selection) {
+          menu.addItem(item => {
+            item.setTitle("Send to Clawdian")
+              .setIcon("clawdian-lobster")
+              .onClick(async () => {
+                await this.activateView();
+                const leaves = this.app.workspace.getLeavesOfType(CLAWDIAN_VIEW_TYPE);
+                if (leaves.length > 0) {
+                  const view = leaves[0].view;
+                  if (view instanceof ClawdianView) {
+                    view.inputEl.value = selection;
+                    view.autoResizeInput();
+                    view.inputEl.focus();
+                  }
+                }
+              });
+          });
+          menu.addItem(item => {
+            item.setTitle("Ask Clawdian to explain")
+              .setIcon("clawdian-lobster")
+              .onClick(async () => {
+                await this.activateView();
+                const leaves = this.app.workspace.getLeavesOfType(CLAWDIAN_VIEW_TYPE);
+                if (leaves.length > 0) {
+                  const view = leaves[0].view;
+                  if (view instanceof ClawdianView) {
+                    view.inputEl.value = `Explain this:\n\n${selection}`;
+                    view.autoResizeInput();
+                    view.inputEl.focus();
+                  }
+                }
+              });
+          });
+        }
+      })
+    );
+
+    this.addSettingTab(new ClawdianSettingTab(this.app, this));
+    console.log("Clawdian v2.0 loaded \uD83E\uDD9E");
   }
 
-  onunload() {
-    console.log("Clawdian unloaded");
-  }
+  onunload() { console.log("Clawdian unloaded"); }
 
   async loadSettings() {
     const data = await this.loadData() || {};
-    // Migration from v0.4.1
     if (data.gatewayToken && !data.gatewayTokenPlaintext && !data.gatewayTokenEncrypted) {
       data.gatewayTokenPlaintext = data.gatewayToken;
       delete data.gatewayToken;
@@ -1224,20 +1540,18 @@ var OpenClawPlugin = class extends import_obsidian.Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
-    this.api = new OpenClawAPI(this.settings);
+    this.api = new ClawdianAPI(this.settings);
   }
 
   async activateView() {
     const { workspace } = this.app;
     let leaf = null;
-    const leaves = workspace.getLeavesOfType(OPENCLAW_VIEW_TYPE);
+    const leaves = workspace.getLeavesOfType(CLAWDIAN_VIEW_TYPE);
     if (leaves.length > 0) {
       leaf = leaves[0];
     } else {
       leaf = workspace.getRightLeaf(false);
-      if (leaf) {
-        await leaf.setViewState({ type: OPENCLAW_VIEW_TYPE, active: true });
-      }
+      if (leaf) await leaf.setViewState({ type: CLAWDIAN_VIEW_TYPE, active: true });
     }
     if (leaf) workspace.revealLeaf(leaf);
   }

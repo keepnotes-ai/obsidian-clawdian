@@ -109,8 +109,7 @@ var DEFAULT_SETTINGS = {
   syncServerUrl: "http://127.0.0.1:18790",
   syncPaths: [{ remotePath: "notes", localPath: "Clawdian/Notes", enabled: true }],
   syncInterval: 0,
-  syncConflictBehavior: "ask",
-  selectedModel: ""
+  syncConflictBehavior: "ask"
 };
 
 // ============================================
@@ -129,18 +128,9 @@ var ClawdianAPI = class {
   async chat(messages, onChunk, onThinking, abortSignal) {
     const parsedUrl = new URL(`${this.settings.gatewayUrl}/v1/chat/completions`);
     const token = this.getToken();
-    const isCustomModel = !!this.settings.selectedModel;
-    const model = this.settings.selectedModel || "clawdbot:main";
-    // When using a custom model (not clawdbot:main), inject a system prompt
-    // since the Gateway won't load SOUL.md for direct model API calls
-    let apiMessages = messages;
-    if (isCustomModel) {
-      const sysPrompt = { role: "system", content: "You are Clawdian, an AI assistant in Obsidian. Be helpful, concise, and direct. Use Chinese by default. Use markdown formatting." };
-      apiMessages = [sysPrompt, ...messages.filter(m => m.role !== "system")];
-    }
     const body = JSON.stringify({
-      model: model,
-      messages: apiMessages,
+      model: "clawdbot:main",
+      messages: messages,
       stream: true
     });
 
@@ -227,7 +217,7 @@ var ClawdianAPI = class {
     const response = await (0, import_obsidian.requestUrl)({
       url, method: "POST",
       headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: this.settings.selectedModel || "clawdbot:main", messages: [{ role: "user", content: message }], stream: false })
+      body: JSON.stringify({ model: "clawdbot:main", messages: [{ role: "user", content: message }], stream: false })
     });
     if (response.status >= 400) throw new Error(`HTTP ${response.status}: ${response.text}`);
     return response.json?.choices?.[0]?.message?.content || "";
@@ -852,12 +842,25 @@ var ClawdianView = class extends import_obsidian.ItemView {
     ];
     for (const m of models) {
       const opt = modelSelect.createEl("option", { text: m.label, attr: { value: m.value } });
-      if (m.value === this.plugin.settings.selectedModel) opt.selected = true;
+      // Default always selected on load - model state lives in the session
     }
     modelSelect.addEventListener("change", async () => {
-      this.plugin.settings.selectedModel = modelSelect.value;
-      await this.plugin.saveSettings();
-      new import_obsidian.Notice(modelSelect.value ? `Model: ${modelSelect.options[modelSelect.selectedIndex].text}` : "Model: Default");
+      const selectedValue = modelSelect.value;
+      const selectedLabel = modelSelect.options[modelSelect.selectedIndex].text;
+      // Send a natural language command to switch models via clawdbot:main session
+      if (!this.isStreaming) {
+        if (selectedValue) {
+          this.inputEl.value = `/model ${selectedValue}`;
+        } else {
+          this.inputEl.value = `/model default`;
+        }
+        await this.sendMessage();
+        new import_obsidian.Notice(`Switching to ${selectedLabel}...`);
+      } else {
+        new import_obsidian.Notice("Wait for response to finish before switching models");
+        // Revert selection
+        modelSelect.value = "";
+      }
     });
 
     // Stop button (visible during streaming)

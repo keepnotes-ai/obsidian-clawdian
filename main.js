@@ -109,7 +109,8 @@ var DEFAULT_SETTINGS = {
   syncServerUrl: "http://127.0.0.1:18790",
   syncPaths: [{ remotePath: "notes", localPath: "Clawdian/Notes", enabled: true }],
   syncInterval: 0,
-  syncConflictBehavior: "ask"
+  syncConflictBehavior: "ask",
+  selectedModel: ""
 };
 
 // ============================================
@@ -128,8 +129,9 @@ var ClawdianAPI = class {
   async chat(messages, onChunk, onThinking, abortSignal) {
     const parsedUrl = new URL(`${this.settings.gatewayUrl}/v1/chat/completions`);
     const token = this.getToken();
+    const model = this.settings.selectedModel || "clawdbot:main";
     const body = JSON.stringify({
-      model: "clawdbot:main",
+      model: model,
       messages: messages,
       stream: true
     });
@@ -217,7 +219,7 @@ var ClawdianAPI = class {
     const response = await (0, import_obsidian.requestUrl)({
       url, method: "POST",
       headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "clawdbot:main", messages: [{ role: "user", content: message }], stream: false })
+      body: JSON.stringify({ model: this.settings.selectedModel || "clawdbot:main", messages: [{ role: "user", content: message }], stream: false })
     });
     if (response.status >= 400) throw new Error(`HTTP ${response.status}: ${response.text}`);
     return response.json?.choices?.[0]?.message?.content || "";
@@ -257,6 +259,7 @@ var ConversationStore = class {
     if (!conv) return;
     const msg = { role, content, timestamp: Date.now() };
     if (extra?.thinking) msg.thinking = extra.thinking;
+    if (extra?.images) msg.images = extra.images;
     conv.messages.push(msg);
     conv.updatedAt = Date.now();
     if (conv.title === "New Chat" && role === "user") {
@@ -823,6 +826,29 @@ var ClawdianView = class extends import_obsidian.ItemView {
 
     const toolbarRight = toolbar.createDiv({ cls: "oc-toolbar-right" });
 
+    // Model selector dropdown
+    const modelSelect = toolbarRight.createEl("select", { cls: "oc-model-select" });
+    const models = [
+      { value: "", label: "Default" },
+      { value: "bailian/qwen3.5-plus", label: "Qwen3.5+" },
+      { value: "bailian/kimi-k2.5", label: "Kimi K2.5" },
+      { value: "zenmux-anthropic/anthropic/claude-opus-4.6", label: "Opus 4.6" },
+      { value: "zenmux-anthropic/anthropic/claude-sonnet-4.6", label: "Sonnet 4.6" },
+      { value: "local/qwen3.5:27b", label: "Local 27B" },
+      { value: "bailian/qwen3-max-2026-01-23", label: "Qwen3 Max" },
+      { value: "bailian/glm-5", label: "GLM-5" },
+      { value: "bailian/MiniMax-M2.5", label: "MiniMax" }
+    ];
+    for (const m of models) {
+      const opt = modelSelect.createEl("option", { text: m.label, attr: { value: m.value } });
+      if (m.value === this.plugin.settings.selectedModel) opt.selected = true;
+    }
+    modelSelect.addEventListener("change", async () => {
+      this.plugin.settings.selectedModel = modelSelect.value;
+      await this.plugin.saveSettings();
+      new import_obsidian.Notice(modelSelect.value ? `Model: ${modelSelect.options[modelSelect.selectedIndex].text}` : "Model: Default");
+    });
+
     // Stop button (visible during streaming)
     this.stopBtn = toolbarRight.createEl("button", {
       cls: "oc-toolbar-btn oc-stop-btn",
@@ -875,6 +901,17 @@ var ClawdianView = class extends import_obsidian.ItemView {
       this.updateContextRow();
     };
     reader.readAsDataURL(blob);
+  }
+
+  showLightbox(src) {
+    const overlay = document.createElement("div");
+    overlay.addClass("oc-lightbox");
+    const img = overlay.createEl("img", { attr: { src } });
+    overlay.addEventListener("click", () => overlay.remove());
+    document.body.appendChild(overlay);
+    // ESC to close
+    const onKey = (e) => { if (e.key === "Escape") { overlay.remove(); document.removeEventListener("keydown", onKey); } };
+    document.addEventListener("keydown", onKey);
   }
 
   // ---- Tab Management ----
@@ -1041,6 +1078,22 @@ var ClawdianView = class extends import_obsidian.ItemView {
     } else {
       const lines = content.split("\n");
       lines.forEach((line, i) => { contentEl.appendText(line); if (i < lines.length - 1) contentEl.createEl("br"); });
+    }
+
+    // Render inline images for user messages (from conversation store)
+    const conv = this.plugin.conversationStore.getConversation(this.activeConvId);
+    if (conv && typeof msgIndex === "number") {
+      const msg = conv.messages[msgIndex];
+      if (msg && msg.images && msg.images.length > 0) {
+        const imgRow = contentEl.createDiv({ cls: "oc-msg-images" });
+        for (const imgData of msg.images) {
+          const thumb = imgRow.createEl("img", {
+            cls: "oc-msg-image-thumb",
+            attr: { src: imgData }
+          });
+          thumb.addEventListener("click", () => this.showLightbox(imgData));
+        }
+      }
     }
 
     // Message actions
@@ -1258,9 +1311,12 @@ var ClawdianView = class extends import_obsidian.ItemView {
       this.pastedImages = [];
     }
 
+    // Capture images before clearing
+    const messageImages = this.pastedImages.map(img => img.data);
+
     // Add to store & render
     if (!isResend) {
-      this.plugin.conversationStore.addMessage(convId, "user", content);
+      this.plugin.conversationStore.addMessage(convId, "user", content, messageImages.length > 0 ? { images: messageImages } : undefined);
       this.appendMessageEl("user", content);
     }
 
@@ -1317,7 +1373,8 @@ var ClawdianView = class extends import_obsidian.ItemView {
 
   autoResizeInput() {
     this.inputEl.style.height = "auto";
-    this.inputEl.style.height = Math.min(this.inputEl.scrollHeight, 200) + "px";
+    const maxH = Math.min(this.containerEl.clientHeight * 0.4, 400);
+    this.inputEl.style.height = Math.min(this.inputEl.scrollHeight, maxH) + "px";
   }
 
   scrollToBottom() {
@@ -1340,14 +1397,21 @@ var ClawdianView = class extends import_obsidian.ItemView {
       });
     }
 
-    // Show pasted images
+    // Show pasted images as thumbnails
     for (let i = 0; i < this.pastedImages.length; i++) {
       hasContent = true;
-      const chip = this.contextRowEl.createDiv({ cls: "oc-context-chip" });
-      chip.createSpan({ text: `\uD83D\uDDBC\uFE0F ${this.pastedImages[i].name}` });
-      const removeBtn = chip.createSpan({ cls: "oc-chip-remove", text: "\u00D7" });
+      const chip = this.contextRowEl.createDiv({ cls: "oc-image-chip" });
+      const thumb = chip.createEl("img", {
+        cls: "oc-image-thumb",
+        attr: { src: this.pastedImages[i].data, alt: this.pastedImages[i].name }
+      });
+      // Click to enlarge
+      thumb.addEventListener("click", () => this.showLightbox(this.pastedImages[i].data));
+      const removeBtn = chip.createDiv({ cls: "oc-image-chip-remove" });
+      removeBtn.setText("\u00D7");
       const idx = i;
-      removeBtn.addEventListener("click", () => {
+      removeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         this.pastedImages.splice(idx, 1);
         this.updateContextRow();
       });

@@ -1,0 +1,822 @@
+/* OpenClaw Obsidian Plugin v2 — styles.css */
+/* Inspired by Claudian's clean aesthetic, adapted for OpenClaw */
+
+/* ============================================
+   Variables
+   ============================================ */
+.openclaw-container {
+  --oc-brand: #D97757;
+  --oc-brand-rgb: 217, 119, 87;
+  --oc-user-bg: rgba(0, 0, 0, 0.25);
+  --oc-user-bg-light: rgba(0, 0, 0, 0.08);
+  --oc-radius: 8px;
+  --oc-radius-sm: 4px;
+  --oc-gap: 12px;
+  --oc-pad: 14px;
+}
+
+/* Light theme adjustments */
+.theme-light .openclaw-container {
+  --oc-user-bg: rgba(0, 0, 0, 0.06);
+  --oc-user-bg-light: rgba(0, 0, 0, 0.04);
+}
+
+/* ============================================
+   Container
+   ============================================ */
+.openclaw-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+@keyframes oc-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes oc-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes oc-fadein {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   Header
+   ============================================ */
+.oc-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.oc-header-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.oc-header-title .oc-logo {
+  font-size: 16px;
+}
+
+.oc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+
+.oc-header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--oc-radius-sm);
+  cursor: pointer;
+  color: var(--text-faint);
+  background: transparent;
+  border: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.oc-header-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.oc-header-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================
+   Tab Bar
+   ============================================ */
+.oc-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.oc-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.oc-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--oc-radius-sm);
+  border: 2px solid var(--background-modifier-border);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: var(--background-primary);
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oc-tab:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.oc-tab.active {
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+
+.oc-tab.streaming {
+  border-color: var(--oc-brand);
+  animation: oc-pulse 1.5s ease-in-out infinite;
+}
+
+.oc-tab-close {
+  display: none;
+  margin-inline-start: 4px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.oc-tab:hover .oc-tab-close {
+  display: inline;
+}
+
+.oc-tab-close:hover {
+  color: var(--text-error);
+}
+
+/* ============================================
+   Messages Area
+   ============================================ */
+.oc-messages-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.oc-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--oc-gap) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--oc-gap);
+}
+
+.oc-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.oc-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.oc-messages::-webkit-scrollbar-thumb {
+  background: var(--background-modifier-border);
+  border-radius: 3px;
+}
+
+.oc-messages::-webkit-scrollbar-thumb:hover {
+  background: var(--background-modifier-border-hover);
+}
+
+/* Scroll to bottom button */
+.oc-scroll-btn {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 10;
+  transition: color 0.15s ease;
+}
+
+.oc-scroll-btn.visible {
+  display: flex;
+}
+
+.oc-scroll-btn:hover {
+  color: var(--text-normal);
+}
+
+.oc-scroll-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================
+   Welcome Screen
+   ============================================ */
+.oc-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  min-height: 200px;
+}
+
+.oc-welcome-greeting {
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.oc-welcome-hint {
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+/* ============================================
+   Messages
+   ============================================ */
+.oc-message {
+  padding: 10px var(--oc-pad);
+  border-radius: var(--oc-radius);
+  max-width: 92%;
+  word-wrap: break-word;
+  animation: oc-fadein 0.2s ease;
+  position: relative;
+}
+
+.oc-message-user {
+  background: var(--oc-user-bg);
+  align-self: flex-end;
+  border-bottom-right-radius: var(--oc-radius-sm);
+}
+
+.oc-message-user::selection,
+.oc-message-user ::selection {
+  background: rgba(255, 255, 255, 0.3);
+  color: inherit;
+}
+
+.oc-message-assistant {
+  background: transparent;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  padding-left: var(--oc-pad);
+  padding-right: var(--oc-pad);
+}
+
+.oc-message-error {
+  background: var(--background-modifier-error);
+  border: 1px solid var(--text-error);
+  align-self: stretch;
+  max-width: 100%;
+  font-size: 13px;
+}
+
+.oc-message-error code {
+  display: block;
+  padding: 8px;
+  background: var(--background-primary);
+  border-radius: var(--oc-radius-sm);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+  cursor: text;
+  margin-top: 4px;
+}
+
+/* ============================================
+   Message Content (Markdown)
+   ============================================ */
+.oc-message-content {
+  line-height: 1.6;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.oc-message-content p {
+  margin: 0 0 8px 0;
+}
+
+.oc-message-content p:last-child {
+  margin-bottom: 0;
+}
+
+.oc-message-content ul,
+.oc-message-content ol {
+  margin: 8px 0;
+  padding-inline-start: 20px;
+}
+
+.oc-message-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.oc-message-content th,
+.oc-message-content td {
+  border: 1px solid var(--background-modifier-border);
+  padding: 6px 10px;
+  text-align: start;
+}
+
+.oc-message-content th {
+  background: var(--background-secondary);
+  font-weight: 600;
+}
+
+.oc-message-content tr:hover {
+  background: var(--background-secondary-alt);
+}
+
+.oc-message-content code {
+  background: var(--background-secondary);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.oc-message-content pre {
+  background: var(--background-secondary);
+  padding: 12px;
+  border-radius: var(--oc-radius);
+  overflow-x: auto;
+  margin: 8px 0;
+  position: relative;
+}
+
+.oc-message-content pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+}
+
+.oc-message-content blockquote {
+  border-left: 3px solid var(--interactive-accent);
+  margin: 8px 0;
+  padding: 4px 12px;
+  color: var(--text-muted);
+}
+
+.oc-message-content a {
+  color: var(--text-accent);
+  text-decoration: none;
+}
+
+.oc-message-content a:hover {
+  text-decoration: underline;
+}
+
+.oc-message-content h1,
+.oc-message-content h2,
+.oc-message-content h3,
+.oc-message-content h4,
+.oc-message-content h5,
+.oc-message-content h6 {
+  margin: 12px 0 6px 0;
+}
+
+.oc-message-content h1 { font-size: 1.4em; }
+.oc-message-content h2 { font-size: 1.2em; }
+.oc-message-content h3 { font-size: 1.1em; }
+
+.oc-message-content img {
+  max-width: 100%;
+  border-radius: var(--oc-radius-sm);
+}
+
+.oc-message-content hr {
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  margin: 12px 0;
+}
+
+/* ============================================
+   Message Actions (hover)
+   ============================================ */
+.oc-message-actions {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  display: none;
+  gap: 4px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--oc-radius-sm);
+  padding: 2px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.oc-message:hover .oc-message-actions {
+  display: flex;
+}
+
+.oc-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-faint);
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  transition: color 0.1s, background 0.1s;
+}
+
+.oc-action-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.oc-action-btn.copied {
+  color: var(--text-success);
+}
+
+/* ============================================
+   File Actions Indicator
+   ============================================ */
+.oc-file-actions {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* ============================================
+   Loading / Streaming Indicator
+   ============================================ */
+.oc-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--oc-pad);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.oc-loading-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.oc-loading-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--oc-brand);
+  animation: oc-pulse 1.2s ease-in-out infinite;
+}
+
+.oc-loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.oc-loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* ============================================
+   Input Area
+   ============================================ */
+.oc-input-container {
+  position: relative;
+  padding: 8px 12px 12px 12px;
+  flex-shrink: 0;
+}
+
+.oc-input-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 80px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--oc-radius);
+  background: var(--background-primary);
+  transition: border-color 0.15s ease;
+}
+
+.oc-input-wrapper:focus-within {
+  border-color: var(--interactive-accent);
+}
+
+/* Context row (shows attached note) */
+.oc-context-row {
+  display: none;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 6px 10px 0 10px;
+  gap: 6px;
+}
+
+.oc-context-row.has-content {
+  display: flex;
+}
+
+.oc-context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--background-secondary);
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oc-context-chip-icon {
+  font-size: 11px;
+}
+
+.oc-context-chip-remove {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-faint);
+  margin-left: 2px;
+}
+
+.oc-context-chip-remove:hover {
+  color: var(--text-error);
+}
+
+/* Textarea */
+.oc-input {
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 40px;
+  max-height: 200px;
+  resize: none;
+  padding: 10px;
+  border: none !important;
+  border-radius: var(--oc-radius);
+  background: transparent !important;
+  color: var(--text-normal);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: none !important;
+  overflow-y: auto;
+}
+
+.oc-input:hover,
+.oc-input:focus {
+  outline: none !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.oc-input::placeholder {
+  color: var(--text-faint);
+}
+
+/* Input Toolbar */
+.oc-input-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 4px 8px 6px 8px;
+}
+
+.oc-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.oc-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.oc-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--oc-radius-sm);
+  cursor: pointer;
+  color: var(--text-faint);
+  background: transparent;
+  border: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.oc-toolbar-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.oc-toolbar-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.oc-toolbar-btn.active {
+  color: var(--interactive-accent);
+}
+
+.oc-send-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ============================================
+   Settings (reuse existing patterns)
+   ============================================ */
+.oc-test-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.oc-test-result {
+  font-size: 13px;
+}
+
+.oc-test-success {
+  color: var(--text-success);
+}
+
+.oc-test-error {
+  color: var(--text-error);
+}
+
+/* Token status */
+.oc-token-status {
+  margin: -8px 0 12px 0;
+  font-size: 12px;
+}
+
+.oc-status-secure {
+  color: var(--text-success);
+}
+
+.oc-status-insecure {
+  color: var(--text-warning);
+}
+
+/* Confirm modal */
+.oc-confirm-details {
+  background: var(--background-secondary);
+  padding: 12px;
+  border-radius: 6px;
+  margin: 12px 0;
+}
+
+.oc-confirm-details strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.oc-confirm-details p {
+  margin: 0;
+  font-family: var(--font-monospace);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.oc-confirm-warning {
+  color: var(--text-error);
+  background: var(--background-modifier-error);
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 12px 0;
+  font-weight: 500;
+}
+
+.oc-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* Security info */
+.oc-security-info {
+  background: var(--background-secondary);
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.oc-security-info ol {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+}
+
+.oc-security-info li {
+  margin-bottom: 6px;
+}
+
+.oc-security-info code {
+  background: var(--background-primary);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* ============================================
+   History Sidebar (for future use)
+   ============================================ */
+.oc-history-panel {
+  display: none;
+  flex-direction: column;
+  width: 220px;
+  border-right: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  overflow-y: auto;
+}
+
+.oc-history-panel.visible {
+  display: flex;
+}
+
+.oc-history-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 1px solid var(--background-modifier-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oc-history-item:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.oc-history-item.active {
+  color: var(--text-normal);
+  font-weight: 500;
+  background: var(--background-primary);
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media (max-width: 400px) {
+  .oc-message {
+    max-width: 98%;
+  }
+  .oc-tab {
+    max-width: 80px;
+  }
+}

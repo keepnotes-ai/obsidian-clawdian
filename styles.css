@@ -101,9 +101,11 @@
   background: var(--background-modifier-hover);
 }
 
-.oc-header-btn svg {
+.oc-header-btn svg,
+.oc-header-btn .svg-icon {
   width: 16px;
   height: 16px;
+  stroke-width: 2;
 }
 
 /* ============================================
@@ -243,7 +245,8 @@
   color: var(--text-normal);
 }
 
-.oc-scroll-btn svg {
+.oc-scroll-btn svg,
+.oc-scroll-btn .svg-icon {
   width: 16px;
   height: 16px;
 }
@@ -287,9 +290,10 @@
 }
 
 .oc-message-user {
-  background: var(--oc-user-bg);
+  background: var(--background-secondary);
   align-self: flex-end;
   border-bottom-right-radius: var(--oc-radius-sm);
+  max-width: 85%;
 }
 
 .oc-message-user::selection,
@@ -305,6 +309,7 @@
   max-width: 100%;
   padding-left: var(--oc-pad);
   padding-right: var(--oc-pad);
+  color: var(--text-normal);
 }
 
 .oc-message-error {
@@ -335,6 +340,15 @@
   line-height: 1.6;
   user-select: text;
   -webkit-user-select: text;
+  color: var(--text-normal);
+}
+
+.oc-message-content p,
+.oc-message-content li,
+.oc-message-content span:not(.token),
+.oc-message-content strong,
+.oc-message-content em {
+  color: var(--text-normal);
 }
 
 .oc-message-content p {
@@ -436,38 +450,50 @@
 }
 
 /* ============================================
+   Role Labels
+   ============================================ */
+.oc-role-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+
+.oc-role-user {
+  text-align: right;
+}
+
+/* ============================================
    Message Actions (hover)
    ============================================ */
 .oc-message-actions {
-  position: absolute;
-  top: 4px;
-  right: 8px;
   display: none;
-  gap: 4px;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--oc-radius-sm);
-  padding: 2px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  gap: 2px;
+  margin-top: 6px;
+  padding-top: 4px;
 }
 
 .oc-message:hover .oc-message-actions {
   display: flex;
 }
 
+.oc-message-user .oc-message-actions {
+  justify-content: flex-end;
+}
+
 .oc-action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 3px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--oc-radius-sm);
   cursor: pointer;
   color: var(--text-faint);
   background: transparent;
   border: none;
-  font-size: 14px;
-  transition: color 0.1s, background 0.1s;
+  transition: color 0.15s, background 0.15s;
 }
 
 .oc-action-btn:hover {
@@ -477,6 +503,11 @@
 
 .oc-action-btn.copied {
   color: var(--text-success);
+}
+
+.oc-action-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* ============================================
@@ -661,9 +692,11 @@
   background: var(--background-modifier-hover);
 }
 
-.oc-toolbar-btn svg {
+.oc-toolbar-btn svg,
+.oc-toolbar-btn .svg-icon {
   width: 16px;
   height: 16px;
+  stroke-width: 2;
 }
 
 .oc-toolbar-btn.active {
@@ -840,16 +873,31 @@
   color: var(--text-normal);
 }
 
-.oc-thinking-header svg {
+.oc-think-icon,
+.oc-think-chevron {
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
 }
 
-.oc-thinking-header svg:last-child {
+.oc-think-icon svg,
+.oc-think-icon .svg-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.oc-think-chevron {
   margin-left: auto;
   transition: transform 0.2s;
 }
 
-.oc-thinking-header.expanded svg:last-child {
+.oc-think-chevron svg,
+.oc-think-chevron .svg-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.oc-thinking-header.expanded .oc-think-chevron {
   transform: rotate(90deg);
 }
 

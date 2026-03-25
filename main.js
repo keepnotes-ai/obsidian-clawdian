@@ -450,20 +450,23 @@ var ActionExecutor = class {
 // ============================================
 var LOBSTER_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="50" cy="42" rx="14" ry="18"/><ellipse cx="50" cy="62" rx="11" ry="10"/><ellipse cx="50" cy="76" rx="8" ry="7"/><circle cx="44" cy="32" r="3" fill="currentColor"/><circle cx="56" cy="32" r="3" fill="currentColor"/><path d="M36 38c-8-2-16-1-20 4s-1 12 5 14"/><path d="M64 38c8-2 16-1 20 4s1 12-5 14"/><path d="M21 56c-5 1-10-1-12-5"/><path d="M79 56c5 1 10-1 12-5"/><path d="M24 48c-6-2-11 0-13 5"/><path d="M76 48c6-2 11 0 13 5"/><path d="M42 82l-7 10"/><path d="M58 82l7 10"/><path d="M47 83l-1 11"/><path d="M53 83l1 11"/><path d="M50 83v11"/><path d="M40 26c-3-6-8-14-8-14"/><path d="M60 26c3-6 8-14 8-14"/></svg>`;
 
-var ICON = {
-  plus: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
-  copy: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-  check: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
-  chevronDown: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
-  chevronRight: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
-  file: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
-  trash: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
-  refresh: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
-  edit: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-  stop: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>',
-  brain: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2z"/></svg>',
-  image: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'
-};
+// Use Obsidian's setIcon API (Lucide icons) instead of raw innerHTML
+// This guarantees rendering in Obsidian's Electron environment
+function setIconSafe(el, iconName, size) {
+  try {
+    (0, import_obsidian.setIcon)(el, iconName);
+    if (size) {
+      const svg = el.querySelector("svg");
+      if (svg) { svg.setAttribute("width", size); svg.setAttribute("height", size); }
+    }
+  } catch (e) {
+    el.setText(iconName); // fallback
+  }
+}
+
+// Lucide icon names used:
+// plus, trash-2, chevron-down, chevron-right, copy, check, file-text,
+// image, square, refresh-cw, pencil, brain, x
 
 // ============================================
 // @ File Mention Popup
@@ -650,11 +653,11 @@ var ClawdianView = class extends import_obsidian.ItemView {
     const actions = header.createDiv({ cls: "oc-header-actions" });
 
     const newBtn = actions.createEl("button", { cls: "oc-header-btn", attr: { "aria-label": "New Chat" } });
-    newBtn.innerHTML = ICON.plus;
+    setIconSafe(newBtn, "plus");
     newBtn.addEventListener("click", () => this.newConversation());
 
     const clearBtn = actions.createEl("button", { cls: "oc-header-btn", attr: { "aria-label": "Delete Chat" } });
-    clearBtn.innerHTML = ICON.trash;
+    setIconSafe(clearBtn, "trash-2");
     clearBtn.addEventListener("click", () => this.deleteCurrentConversation());
 
     // ---- Messages ----
@@ -663,7 +666,7 @@ var ClawdianView = class extends import_obsidian.ItemView {
 
     // Scroll to bottom button
     this.scrollBtnEl = messagesWrapper.createDiv({ cls: "oc-scroll-btn" });
-    this.scrollBtnEl.innerHTML = ICON.chevronDown;
+    this.setIconSafe(scrollBtnEl, "chevron-down");
     this.scrollBtnEl.addEventListener("click", () => this.scrollToBottom());
 
     this.messagesEl.addEventListener("scroll", () => {
@@ -767,7 +770,7 @@ var ClawdianView = class extends import_obsidian.ItemView {
       cls: "oc-toolbar-btn" + (this.plugin.settings.includeCurrentNote ? " active" : ""),
       attr: { "aria-label": "Include current note" }
     });
-    this.noteToggleBtn.innerHTML = ICON.file;
+    this.setIconSafe(noteToggleBtn, "file-text");
     this.noteToggleBtn.addEventListener("click", () => {
       this.plugin.settings.includeCurrentNote = !this.plugin.settings.includeCurrentNote;
       this.noteToggleBtn.toggleClass("active", this.plugin.settings.includeCurrentNote);
@@ -780,7 +783,7 @@ var ClawdianView = class extends import_obsidian.ItemView {
       cls: "oc-toolbar-btn",
       attr: { "aria-label": "Attach image" }
     });
-    imgBtn.innerHTML = ICON.image;
+    setIconSafe(imgBtn, "image");
     imgBtn.addEventListener("click", () => {
       const fileInput = document.createElement("input");
       fileInput.type = "file";
@@ -801,7 +804,7 @@ var ClawdianView = class extends import_obsidian.ItemView {
       cls: "oc-toolbar-btn oc-stop-btn",
       attr: { "aria-label": "Stop generating" }
     });
-    this.stopBtn.innerHTML = ICON.stop;
+    this.setIconSafe(stopBtn, "square");
     this.stopBtn.style.display = "none";
     this.stopBtn.addEventListener("click", () => {
       if (this.abortController) this.abortController.abort();
@@ -972,13 +975,28 @@ var ClawdianView = class extends import_obsidian.ItemView {
   }
 
   appendMessageEl(role, content, msgIndex, thinking) {
+    // Hide welcome screen when first message appears
+    const welcome = this.messagesEl.querySelector(".oc-welcome");
+    if (welcome) welcome.remove();
+
     const msgEl = this.messagesEl.createDiv({ cls: `oc-message oc-message-${role}` });
+
+    // Role label
+    if (role === "assistant") {
+      msgEl.createDiv({ cls: "oc-role-label", text: "\uD83E\uDD9E Clawdian" });
+    } else if (role === "user") {
+      msgEl.createDiv({ cls: "oc-role-label oc-role-user", text: "You" });
+    }
 
     // Thinking block (collapsible)
     if (thinking && role === "assistant") {
       const thinkWrap = msgEl.createDiv({ cls: "oc-thinking" });
       const thinkHeader = thinkWrap.createDiv({ cls: "oc-thinking-header" });
-      thinkHeader.innerHTML = `${ICON.brain} <span>Thinking</span> ${ICON.chevronRight}`;
+      const thBrainIcon = thinkHeader.createSpan({ cls: "oc-think-icon" });
+      setIconSafe(thBrainIcon, "brain", "12");
+      thinkHeader.createSpan({ text: "Thinking" });
+      const thChevron = thinkHeader.createSpan({ cls: "oc-think-chevron" });
+      setIconSafe(thChevron, "chevron-right", "12");
       const thinkBody = thinkWrap.createDiv({ cls: "oc-thinking-body" });
       thinkBody.style.display = "none";
       thinkBody.setText(thinking);
@@ -1007,18 +1025,18 @@ var ClawdianView = class extends import_obsidian.ItemView {
 
       // Copy
       const copyBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Copy" } });
-      copyBtn.innerHTML = ICON.copy;
+      setIconSafe(copyBtn, "copy");
       copyBtn.addEventListener("click", async () => {
         await navigator.clipboard.writeText(content);
-        copyBtn.innerHTML = ICON.check;
+        setIconSafe(copyBtn, "check");
         copyBtn.addClass("copied");
-        setTimeout(() => { copyBtn.innerHTML = ICON.copy; copyBtn.removeClass("copied"); }, 1500);
+        setTimeout(() => { setIconSafe(copyBtn, "copy"); copyBtn.removeClass("copied"); }, 1500);
       });
 
       if (role === "user" && typeof msgIndex === "number") {
         // Edit & resend
         const editBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Edit & resend" } });
-        editBtn.innerHTML = ICON.edit;
+        setIconSafe(editBtn, "pencil");
         editBtn.addEventListener("click", () => {
           // Truncate conversation from this message onward
           this.plugin.conversationStore.truncateFrom(this.activeConvId, msgIndex);
@@ -1032,7 +1050,7 @@ var ClawdianView = class extends import_obsidian.ItemView {
       if (role === "assistant" && typeof msgIndex === "number") {
         // Regenerate
         const regenBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Regenerate" } });
-        regenBtn.innerHTML = ICON.refresh;
+        setIconSafe(regenBtn, "refresh-cw");
         regenBtn.addEventListener("click", () => {
           // Remove this assistant message and resend the previous user message
           this.plugin.conversationStore.truncateFrom(this.activeConvId, msgIndex);
@@ -1054,7 +1072,9 @@ var ClawdianView = class extends import_obsidian.ItemView {
 
     this.thinkingEl = this.streamingEl.createDiv({ cls: "oc-thinking streaming" });
     this.thinkingHeaderEl = this.thinkingEl.createDiv({ cls: "oc-thinking-header expanded" });
-    this.thinkingHeaderEl.innerHTML = `${ICON.brain} <span>Thinking...</span>`;
+    const stBrainIcon = this.thinkingHeaderEl.createSpan({ cls: "oc-think-icon" });
+    setIconSafe(stBrainIcon, "brain", "12");
+    this.thinkingHeaderEl.createSpan({ text: "Thinking..." });
     this.thinkingContentEl = this.thinkingEl.createDiv({ cls: "oc-thinking-body" });
     this.thinkingContentEl.style.display = "block";
     this.thinkingEl.style.display = "none"; // Hidden until thinking content arrives
@@ -1088,7 +1108,12 @@ var ClawdianView = class extends import_obsidian.ItemView {
     // Finalize thinking block
     if (thinkingText && this.thinkingEl) {
       this.thinkingEl.removeClass("streaming");
-      this.thinkingHeaderEl.innerHTML = `${ICON.brain} <span>Thinking</span> ${ICON.chevronRight}`;
+      this.thinkingHeaderEl.empty();
+      const fBrainIcon = this.thinkingHeaderEl.createSpan({ cls: "oc-think-icon" });
+      setIconSafe(fBrainIcon, "brain", "12");
+      this.thinkingHeaderEl.createSpan({ text: "Thinking" });
+      const fChevron = this.thinkingHeaderEl.createSpan({ cls: "oc-think-chevron" });
+      setIconSafe(fChevron, "chevron-right", "12");
       this.thinkingContentEl.style.display = "none";
       this.thinkingHeaderEl.removeClass("expanded");
       let expanded = false;
@@ -1109,16 +1134,16 @@ var ClawdianView = class extends import_obsidian.ItemView {
     const actionsEl = this.streamingEl.createDiv({ cls: "oc-message-actions" });
 
     const copyBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Copy" } });
-    copyBtn.innerHTML = ICON.copy;
+    setIconSafe(copyBtn, "copy");
     copyBtn.addEventListener("click", async () => {
       await navigator.clipboard.writeText(fullText);
-      copyBtn.innerHTML = ICON.check;
+      setIconSafe(copyBtn, "check");
       copyBtn.addClass("copied");
-      setTimeout(() => { copyBtn.innerHTML = ICON.copy; copyBtn.removeClass("copied"); }, 1500);
+      setTimeout(() => { setIconSafe(copyBtn, "copy"); copyBtn.removeClass("copied"); }, 1500);
     });
 
     const regenBtn = actionsEl.createEl("button", { cls: "oc-action-btn", attr: { "aria-label": "Regenerate" } });
-    regenBtn.innerHTML = ICON.refresh;
+    setIconSafe(regenBtn, "refresh-cw");
     regenBtn.addEventListener("click", () => {
       // Find msg index
       const conv = this.plugin.conversationStore.getConversation(this.activeConvId);

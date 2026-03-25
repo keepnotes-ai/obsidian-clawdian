@@ -532,6 +532,9 @@ var ActionExecutor = class {
 // ============================================
 // src/icons.ts — SVG Icons
 // ============================================
+// Custom lobster icon for ribbon (Obsidian uses 100x100 viewBox for addIcon)
+var LOBSTER_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M50 28c-4 0-8 2-10 6-2 4-2 8 0 12l4 6 4 8c1 3 1 6 0 9l-3 7"/><path d="M50 28c4 0 8 2 10 6 2 4 2 8 0 12l-4 6-4 8c-1 3-1 6 0 9l3 7"/><circle cx="44" cy="32" r="2.5"/><circle cx="56" cy="32" r="2.5"/><path d="M40 34c-6-4-14-6-18-2s-2 12 4 16"/><path d="M60 34c6-4 14-6 18-2s2 12-4 16"/><path d="M26 48c-4 1-10 0-13-4"/><path d="M74 48c4 1 10 0 13-4"/><path d="M30 42c-5-1-12 0-14 4"/><path d="M70 42c5-1 12 0 14 4"/><path d="M44 76l-6 8"/><path d="M56 76l6 8"/><path d="M48 77l-2 10"/><path d="M52 77l2 10"/><path d="M38 20c-2-6-6-10-6-10"/><path d="M62 20c2-6 6-10 6-10"/></svg>`;
+
 var ICONS = {
   plus: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>',
   settings: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
@@ -561,7 +564,7 @@ var OpenClawView = class extends import_obsidian.ItemView {
 
   getViewType() { return OPENCLAW_VIEW_TYPE; }
   getDisplayText() { return "Clawdian"; }
-  getIcon() { return "message-circle"; }
+  getIcon() { return "clawdian-lobster"; }
 
   async onOpen() {
     const container = this.containerEl.children[1];
@@ -1175,9 +1178,12 @@ var OpenClawPlugin = class extends import_obsidian.Plugin {
     this.actionExecutor = new ActionExecutor(this.app, () => this.settings);
     this.conversationStore = new ConversationStore(this.app, () => this.settings);
 
+    // Register custom lobster icon
+    (0, import_obsidian.addIcon)("clawdian-lobster", LOBSTER_ICON);
+
     this.registerView(OPENCLAW_VIEW_TYPE, (leaf) => new OpenClawView(leaf, this));
 
-    this.addRibbonIcon("message-circle", "Open Clawdian", () => this.activateView());
+    this.addRibbonIcon("clawdian-lobster", "Open Clawdian", () => this.activateView());
 
     this.addCommand({
       id: "open-openclaw-chat",

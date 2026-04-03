@@ -374,10 +374,14 @@ function buildSystemPrompt(app, settings) {
   }
   prompt += `- Create files: use write tool\n- Read files: use read tool\nObsidian auto-detects file changes.\n`;
   prompt += `\n## Large file search\n`;
-  prompt += `When context includes [Current note searched: ...] or [Large file searched: ...], the plugin has already searched the file and sent relevant excerpts. **Do NOT run exec/rg on that file** — the search is done. Base your answer on the provided excerpts.\n`;
-  prompt += `If search found no matches, tell the user directly and suggest rephrasing — do not attempt to search the vault yourself.\n`;
-  prompt += `Only use exec + rg when the user explicitly asks you to search, or for files NOT already searched by the plugin:\n`;
+  prompt += `When a large file is attached (marked [Large file]), use exec + rg (ripgrep) to search:\n`;
   prompt += `  exec: rg -i -F -C 5 "keyword" "filepath"\n`;
+  prompt += `Flags: -i (ignore case), -F (literal string, not regex), -C 5 (5 lines context)\n`;
+  prompt += `Strategy:\n`;
+  prompt += `1. Extract the core keyword from the user's question (not the whole sentence)\n`;
+  prompt += `2. Search with rg. If 0 results, try synonyms or related terms and search again\n`;
+  prompt += `3. Once you find matches, use read tool with offset/limit to get full context around the matches\n`;
+  prompt += `4. For Chinese text: try both the exact term and common variants (e.g. 成作智 → 成所作智)\n`;
   prompt += `\n## Selection Context\n`;
   prompt += `User messages may include an \`<editor_selection>\` tag showing text the user selected:\n`;
   prompt += `\`\`\`\n<editor_selection path="path/to/file.md" lines="10-15">\nselected text here\n</editor_selection>\n\`\`\`\n`;
@@ -2574,7 +2578,7 @@ var ClawdianView = class extends import_obsidian.ItemView {
               contextParts.push(`[Large file searched: ${file.path}] (${charCount} chars total)\n${searchResult}`);
             } else {
               // Fallback: let AI use rg
-              contextParts.push(`[Large file: ${file.path}] (${charCount} chars, ${lineCount} lines)\nBuilt-in search found no matches for your query in this file. Tell the user no relevant content was found and suggest they rephrase or use more specific keywords.`);
+              contextParts.push(`[Large file: ${file.path}] (${charCount} chars, ${lineCount} lines)\nFull path: ${fullPath}\nBuilt-in search found no matches. Use rg to search: rg -i -F -C 5 "keyword" "${fullPath}"`);
             }
           } else {
             // Normal file: inline content
@@ -2609,7 +2613,7 @@ var ClawdianView = class extends import_obsidian.ItemView {
                 if (searchResult) {
                   contextParts.push(`[Current note searched: ${activeFile.path}] (${noteContent.length} chars total)\n${searchResult}`);
                 } else {
-                  contextParts.push(`[Current note: ${activeFile.path}] (${noteContent.length} chars, large file)\nBuilt-in search found no matches for your query in this file. Tell the user no relevant content was found and suggest they rephrase or use more specific keywords.`);
+                  contextParts.push(`[Current note: ${activeFile.path}] (${noteContent.length} chars, large file)\nFull path: ${fullPath}\nBuilt-in search found no matches. Use rg to search: rg -i -F -C 5 "keyword" "${fullPath}"`);
                 }
               } else {
                 contextParts.push(`[Currently viewing: ${activeFile.path}]\n\`\`\`\n${noteContent}\n\`\`\``);

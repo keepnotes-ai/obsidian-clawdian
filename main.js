@@ -169,20 +169,14 @@ function _vsExtractKeywords(query) {
   }
 
   const primary = [...keywords].sort((a, b) => b.length - a.length).slice(0, 8);
-
-  // Build co-occurrence groups: each primary keyword + its synonyms = one group
-  const groups = [];
+  const expanded = [...primary];
   const seen = new Set(primary.map(w => w.toLowerCase()));
-  const allTerms = [...primary];
   for (const kw of primary) {
-    const members = new Set([kw]);
     for (const syn of (_VS_SYNONYMS[kw] || [])) {
-      members.add(syn);
-      if (!seen.has(syn.toLowerCase())) { allTerms.push(syn); seen.add(syn.toLowerCase()); }
+      if (!seen.has(syn.toLowerCase())) { expanded.push(syn); seen.add(syn.toLowerCase()); }
     }
-    groups.push({ primary: kw, members });
   }
-  return { terms: allTerms, groups };
+  return expanded;
 }
 
 function _vsJsSearch(lines, searchTerms) {
@@ -201,7 +195,7 @@ function _vsJsSearch(lines, searchTerms) {
   return hitLines;
 }
 
-function _vsBuildRegions(hitLines, totalLines, contextLines, groups) {
+function _vsBuildRegions(hitLines, totalLines, contextLines) {
   if (hitLines.size === 0) return [];
   const sortedHits = [...hitLines.keys()].sort((a, b) => a - b);
   const raw = [];
@@ -222,23 +216,8 @@ function _vsBuildRegions(hitLines, totalLines, contextLines, groups) {
     const ctxEnd = Math.min(totalLines - 1, r.end + contextLines);
     const span = ctxEnd - ctxStart + 1;
     const sizePenalty = span > 200 ? 0.3 : span > 100 ? 0.6 : 1.0;
-
-    // Co-occurrence scoring: count how many distinct keyword groups are present
-    let groupsCovered = 0;
-    if (groups && groups.length >= 2) {
-      for (const g of groups) {
-        for (const kw of r.keywords) {
-          if (g.members.has(kw)) { groupsCovered++; break; }
-        }
-      }
-    }
-    // ≥2 groups co-occur → multiply score; only 1 group → mild penalty
-    const coBoost = (groups && groups.length >= 2)
-      ? (groupsCovered >= 2 ? groupsCovered * 3 : 0.6)
-      : 1;
-
-    const score = (r.keywords.size * r.keywords.size * 5 + (r.hitCount / span) * 10) * sizePenalty * coBoost;
-    return { start: ctxStart, end: ctxEnd, keywords: r.keywords, hitCount: r.hitCount, score, groupsCovered: groupsCovered || 1 };
+    const score = (r.keywords.size * r.keywords.size * 5 + (r.hitCount / span) * 10) * sizePenalty;
+    return { start: ctxStart, end: ctxEnd, keywords: r.keywords, hitCount: r.hitCount, score };
   }).sort((a, b) => b.score - a.score);
 }
 
@@ -270,13 +249,13 @@ function builtinVaultSearch(content, query) {
   const MAX_RESULTS = 8;
 
   const lines = content.split('\n');
-  const { terms: searchTerms, groups } = _vsExtractKeywords(query);
+  const searchTerms = _vsExtractKeywords(query);
   if (searchTerms.length === 0) return null;
 
   const hitLines = _vsJsSearch(lines, searchTerms);
   if (hitLines.size === 0) return null;
 
-  const regions = _vsBuildRegions(hitLines, lines.length, CONTEXT_LINES, groups);
+  const regions = _vsBuildRegions(hitLines, lines.length, CONTEXT_LINES);
   if (regions.length === 0) return null;
 
   const header = `搜索「${query}」关键词：${searchTerms.slice(0, 6).join('、')} | 找到 ${regions.length} 处相关段落\n`;

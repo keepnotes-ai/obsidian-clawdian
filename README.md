@@ -2,7 +2,7 @@
 
 AI chat assistant for [Obsidian](https://obsidian.md) with deep vault integration.
 
-Works with any **OpenAI-compatible API** — [OpenClaw](https://github.com/nicekate/openclaw), [OpenRouter](https://openrouter.ai), [LM Studio](https://lmstudio.ai), [Ollama](https://ollama.ai), or any self-hosted server.
+Works with any **OpenAI-compatible API** — [OpenClaw](https://github.com/Osamadhi/openclaw), [OpenRouter](https://openrouter.ai), [LM Studio](https://lmstudio.ai), [Ollama](https://ollama.ai), or any self-hosted server.
 
 ## Features
 
@@ -26,7 +26,7 @@ Works with any **OpenAI-compatible API** — [OpenClaw](https://github.com/nicek
 
 ### 1. Install
 
-Download `main.js`, `styles.css`, and `manifest.json` from the [latest release](https://github.com/nicekate/clawdian/releases).
+Download `main.js`, `styles.css`, and `manifest.json` from the [latest release](https://github.com/Osamadhi/obsidian-clawdian/releases).
 
 ```
 <your-vault>/.obsidian/plugins/clawdian/
@@ -232,7 +232,7 @@ Built by Zorba with Claude & Maya.
 
 ### 第一步：下载插件文件
 
-打开 [最新 Release 页面](https://github.com/nicekate/obsidian-clawdian/releases/latest)，下载这三个文件：
+打开 [最新 Release 页面](https://github.com/Osamadhi/obsidian-clawdian/releases/latest)，下载这三个文件：
 
 - `main.js`
 - `styles.css`
@@ -276,4 +276,4 @@ Built by Zorba with Claude & Maya.
 - 在编辑器选中文字，切到 Clawdian 直接问
 - 输入 `/` 查看快捷命令
 
-遇到问题先看 [使用手册](https://github.com/nicekate/obsidian-clawdian/blob/main/README.md#usage) 或者找 Zorba。
+遇到问题先看 [使用手册](https://github.com/Osamadhi/obsidian-clawdian/blob/main/README.md#usage) 或者找 Zorba。

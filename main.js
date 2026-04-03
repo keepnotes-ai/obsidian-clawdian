@@ -144,19 +144,6 @@ function _vsSplitByCnBreaks(text) {
   return results;
 }
 
-// Extract the most question-like part of a potentially long message
-function _vsFocusQuery(message) {
-  if (!message || message.length <= 80) return message;
-  // Split by sentence-ending punctuation or newlines
-  const segments = message.split(/[。！？!?\n]+/).map(s => s.trim()).filter(s => s.length >= 2);
-  if (segments.length <= 1) return message;
-  // Prefer last segment that looks like a question or is substantial
-  for (let i = segments.length - 1; i >= 0; i--) {
-    const s = segments[i];
-    if (s.length >= 4) return s;
-  }
-  return segments[segments.length - 1];
-}
 
 function _vsExtractKeywords(query) {
   const keywords = new Set();
@@ -262,8 +249,7 @@ function builtinVaultSearch(content, query) {
   const MAX_RESULTS = 8;
 
   const lines = content.split('\n');
-  const focusedQuery = _vsFocusQuery(query);
-  const searchTerms = _vsExtractKeywords(focusedQuery);
+  const searchTerms = _vsExtractKeywords(query);
   if (searchTerms.length === 0) return null;
 
   const hitLines = _vsJsSearch(lines, searchTerms);

@@ -1,8 +1,10 @@
 # 🦞 Clawdian
 
-AI chat assistant for [Obsidian](https://obsidian.md) with deep vault integration.
+The official [OpenClaw](https://github.com/Osamadhi/openclaw) × [Obsidian](https://obsidian.md) plugin — bringing OpenClaw's full AI capabilities into your vault.
 
-Works with any **OpenAI-compatible API** — [OpenClaw](https://github.com/Osamadhi/openclaw), [OpenRouter](https://openrouter.ai), [LM Studio](https://lmstudio.ai), [Ollama](https://ollama.ai), or any self-hosted server.
+Chat with AI, edit notes inline, attach files as context, and run vault operations, all without leaving Obsidian. Powered by OpenClaw's agent system with tool use, memory, and custom personas.
+
+Also works with any **OpenAI-compatible API** — [OpenRouter](https://openrouter.ai), [LM Studio](https://lmstudio.ai), [Ollama](https://ollama.ai), or any self-hosted server.
 
 ## Features
 
@@ -88,9 +90,9 @@ Click the 🦞 icon in the sidebar. Done!
 | Token | (leave empty) |
 | Default model | `llama3` |
 
-### OpenClaw Gateway (advanced)
+### OpenClaw Gateway (recommended)
 
-OpenClaw users get the richest experience: tool use, vault file operations, and agent personas.
+OpenClaw provides the full experience: tool use, vault file operations, persistent memory, and agent personas.
 
 | Setting | Value |
 |---------|-------|
@@ -228,8 +230,6 @@ Built by Zorba with Claude & Maya.
 
 ## 中文安装指南
 
-> 给同事看的版本。跟着做，5 分钟装完。
-
 ### 第一步：下载插件文件
 
 打开 [最新 Release 页面](https://github.com/Osamadhi/obsidian-clawdian/releases/latest)，下载这三个文件：
@@ -237,6 +237,8 @@ Built by Zorba with Claude & Maya.
 - `main.js`
 - `styles.css`
 - `manifest.json`
+
+也可以通过 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 安装：添加仓库 `Osamadhi/obsidian-clawdian`，BRAT 会自动下载并支持后续更新。
 
 ### 第二步：放到 Obsidian 插件目录
 
@@ -256,24 +258,26 @@ Built by Zorba with Claude & Maya.
 
 ### 第四步：填写连接信息
 
-设置 → Clawdian：
+打开 Obsidian 设置 → Clawdian：
 
-| 填什么 | 填哪里 | 示例 |
-|--------|--------|------|
-| Gateway URL | API 地址 | `http://127.0.0.1:18789` |
-| Token | API 密钥 | 找 Zorba 要 |
-| Default model | 默认模型 | `openclaw/obsidian` |
+| 设置项 | 说明 | 示例值 |
+|--------|------|--------|
+| Gateway URL | OpenClaw 服务地址 | `http://127.0.0.1:18789` |
+| Token | OpenClaw 访问令牌，由服务管理员提供 | — |
+| Default model | 默认使用的模型 | `openclaw/obsidian` |
 
-填完点 **Test Connection**，显示绿色 ✅ 就成功了。
+填完点 **Test Connection**，显示绿色 ✅ 即连接成功。
 
-### 第五步：开始用
+> Token 和 Gateway URL 由 OpenClaw 服务管理员提供。如需了解 OpenClaw 部署，参见 [OpenClaw 文档](https://github.com/Osamadhi/openclaw)。
 
-左侧边栏点 🦞 龙虾图标，打开 Clawdian，开聊。
+### 第五步：开始使用
+
+左侧边栏点 🦞 龙虾图标，打开 Clawdian，开始对话。
 
 **常用操作：**
 - `Enter` 发送，`Shift+Enter` 换行
-- 输入 `@` + 文件名，把某篇笔记发给 AI
-- 在编辑器选中文字，切到 Clawdian 直接问
-- 输入 `/` 查看快捷命令
+- 输入 `@` + 文件名，将某篇笔记作为上下文发送给 AI
+- 在编辑器中选中文字，切到 Clawdian 直接提问
+- 输入 `/` 查看内置及自定义快捷命令
 
-遇到问题先看 [使用手册](https://github.com/Osamadhi/obsidian-clawdian/blob/main/README.md#usage) 或者找 Zorba。
+遇到问题请在 [GitHub Issues](https://github.com/Osamadhi/obsidian-clawdian/issues) 提交反馈。

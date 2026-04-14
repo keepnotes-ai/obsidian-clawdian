@@ -330,6 +330,21 @@
   text-align: center;
   padding: 20px;
   min-height: 200px;
+  position: relative;
+}
+
+.oc-welcome::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--background-primary);
+  opacity: 0.85;
+  z-index: 0;
+}
+
+.oc-welcome > * {
+  position: relative;
+  z-index: 1;
 }
 
 .oc-welcome-greeting {
@@ -337,11 +352,13 @@
   font-weight: 300;
   color: var(--text-muted);
   margin-bottom: 8px;
+  text-shadow: 0 1px 4px var(--background-primary);
 }
 
 .oc-welcome-hint {
   font-size: 13px;
   color: var(--text-faint);
+  text-shadow: 0 1px 4px var(--background-primary);
 }
 
 /* ============================================

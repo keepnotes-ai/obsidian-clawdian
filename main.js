@@ -649,6 +649,7 @@ var ConversationStore = class {
   }
 
   async saveConversation(id) {
+    return; // conversation saving disabled
     const conv = this.conversations.get(id);
     if (!conv) return;
     const settings = this.getSettings();
@@ -2246,6 +2247,14 @@ var ClawdianView = class extends import_obsidian.ItemView {
     const conv = this.plugin.conversationStore.getConversation(this.activeConvId);
     if (!conv || conv.messages.length === 0) {
       const welcome = this.messagesEl.createDiv({ cls: "oc-welcome" });
+      const adapter = this.plugin.app.vault.adapter;
+      if (adapter && adapter.getResourcePath) {
+        const bgUrl = adapter.getResourcePath(`${this.plugin.app.vault.configDir}/plugins/${this.plugin.manifest.id}/welcome-bg.png`);
+        welcome.style.backgroundImage = `url("${bgUrl}")`;
+        welcome.style.backgroundSize = "cover";
+        welcome.style.backgroundPosition = "center";
+        welcome.style.backgroundRepeat = "no-repeat";
+      }
       welcome.createDiv({ cls: "oc-welcome-greeting", text: "\uD83E\uDD9E Hey there" });
       welcome.createDiv({ cls: "oc-welcome-hint", text: "Enter to send \u00B7 @ to attach files \u00B7 / for commands \u00B7 paste images" });
       return;
